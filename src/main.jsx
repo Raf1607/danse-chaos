@@ -62,6 +62,7 @@ function App() {
   const streamRef = useRef(null), rafRef = useRef(null), samplesRef = useRef([]);
   const audioRef = useRef(null), synthRef = useRef(null), timerRef = useRef(null), lastPoseRef = useRef(null);
   const [cameraOn, setCameraOn] = useState(false), [loadingCamera, setLoadingCamera] = useState(false);
+  const [jamendoTracks, setJamendoTracks] = useState([]), [loadingJamendo, setLoadingJamendo] = useState(false);
   const [phase, setPhase] = useState("home"), [tracks, setTracks] = useState([]);
   const [track, setTrack] = useState(null), [timeLeft, setTimeLeft] = useState(ROUND_SECONDS);
   const [score, setScore] = useState(null), [error, setError] = useState("");
@@ -127,6 +128,34 @@ function App() {
     loop();
   }
 
+  async function loadJamendoTracks() {
+    setError(""); setLoadingJamendo(true);
+    try {
+      // Public demo ID is for testing only. Replace with your registered Jamendo client_id before public release.
+      const clientId = import.meta.env.VITE_JAMENDO_CLIENT_ID || "709fa152";
+      const params = new URLSearchParams({
+        client_id: clientId, format: "json", limit: "200", audioformat: "mp32",
+        include: "licenses", ccnd: "false", order: "popularity_month"
+      });
+      const response = await fetch(`https://api.jamendo.com/v3.0/tracks/?${params.toString()}`);
+      if (!response.ok) throw new Error("Jamendo ne répond pas pour le moment.");
+      const data = await response.json();
+      if (data.headers?.status !== "success") throw new Error(data.headers?.error_message || "Réponse Jamendo invalide.");
+      const usable = (data.results || []).filter(t =>
+        t.audio && t.license_ccurl && !/\\bnd\\b|by-nc-nd|by-nd/i.test(t.license_ccurl)
+      ).map(t => ({
+        id: `jamendo-${t.id}`, type: "JAMENDO", name: t.name || "Titre sans nom",
+        artist: t.artist_name || "Artiste indépendant", audio: t.audio,
+        license: t.license_ccurl, url: t.shareurl || t.shorturl || `https://www.jamendo.com/track/${t.id}`
+      }));
+      if (!usable.length) throw new Error("Aucun morceau avec un flux et une licence compatible n'a été trouvé.");
+      setJamendoTracks(usable);
+      setHint(`${usable.length} morceaux Jamendo prêts. Que le hasard décide !`);
+    } catch (e) {
+      setError(e.message || "Impossible de charger les morceaux Jamendo.");
+    } finally { setLoadingJamendo(false); }
+  }
+
   function addFiles(fileList) {
     const incoming=[...fileList].filter(f=>f.type.startsWith("audio/")||/\.(mp3|wav|ogg|m4a)$/i.test(f.name));
     const mapped=incoming.map((file,i)=>({id:file.name+file.size+Date.now()+i,name:file.name.replace(/\.[^.]+$/,""),type:"UPLOAD",file,url:URL.createObjectURL(file)}));
@@ -134,15 +163,16 @@ function App() {
     if(!mapped.length)setError("Aucun fichier audio compatible trouvé."); else setError("");
   }
   function pickRandomTrack() {
-    const options=[...tracks,{id:"synth-troll",name:"BIP BIP CHAOS",type:"TROLL"},{id:"synth-arcade",name:"ARCADE PANIC",type:"ARCADE"},{id:"synth-chill",name:"BANANA GROOVE",type:"SYNTH"}];
+    const originals=[{id:"synth-troll",name:"BIP BIP CHAOS",type:"TROLL"},{id:"synth-arcade",name:"ARCADE PANIC",type:"ARCADE"},{id:"synth-chill",name:"BANANA GROOVE",type:"SYNTH"}];
+    const options=[...tracks,...jamendoTracks,...(jamendoTracks.length ? [] : originals)];
     const chosen=options[Math.floor(Math.random()*options.length)];
     return chosen.type==="UPLOAD"?chosen:{...chosen,seed:Math.floor(Math.random()*999999)};
   }
   async function playTrackSegment(selected, preview=false) {
     if(audioRef.current){audioRef.current.pause();audioRef.current=null;}
     if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{} synthRef.current=null;}
-    if(selected.type==="UPLOAD"){
-      const audio=new Audio(selected.url); audio.volume=volume; audioRef.current=audio;
+    if(selected.type==="UPLOAD" || selected.type==="JAMENDO"){
+      const audio=new Audio(selected.type==="JAMENDO"?selected.audio:selected.url); audio.volume=volume; audioRef.current=audio;
       await new Promise(resolve=>{audio.onloadedmetadata=resolve;audio.onerror=resolve;});
       const duration=audio.duration||40, maxStart=Math.max(0,duration-(preview?5:ROUND_SECONDS));
       audio.currentTime=Math.random()*maxStart; await audio.play();
@@ -198,8 +228,11 @@ function App() {
       {error&&<div className="error-msg">{error}</div>}
       <div className="volume-row"><Volume2 size={16}/><input aria-label="Volume" type="range" min="0" max="1" step=".05" value={volume} onChange={e=>setVolume(Number(e.target.value))}/><span>{Math.round(volume*100)}%</span></div>
     </div>
-    <aside className="side-panel"><div className="side-card"><div className="panel-label">BIBLIOTHÈQUE MUSICALE</div><div className="music-feature"><div className="music-art"><Music2 size={30}/><span>?</span></div><div><b>{track?track.name:"LA PROCHAINE SURPRISE"}</b><small>{track?(track.type==="UPLOAD"?"TON FICHIER":"PISTE ORIGINALE DU JEU"):"3 pistes troll + tes musiques"}</small></div></div>
-      <label className="upload-btn"><Upload size={16}/> IMPORTER DES MUSIQUES<input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" multiple onChange={e=>addFiles(e.target.files)}/></label><div className="library-count">{tracks.length} musique{tracks.length>1?"s":""} importée{tracks.length>1?"s":""} · 3 pistes originales</div></div>
+    <aside className="side-panel"><div className="side-card"><div className="panel-label">BIBLIOTHÈQUE MUSICALE</div><div className="music-feature"><div className="music-art"><Music2 size={30}/><span>?</span></div><div><b>{track?track.name:"LA PROCHAINE SURPRISE"}</b><small>{track?(track.type==="UPLOAD"?"TON FICHIER":track.type==="JAMENDO"?"JAMENDO · "+track.artist:"PISTE ORIGINALE DU JEU"):"Morceaux indépendants + tes musiques"}</small></div></div>
+      <button className="jamendo-btn" onClick={loadJamendoTracks} disabled={loadingJamendo}><Music2 size={16}/> {loadingJamendo?"CHARGEMENT JAMENDO…":"CHARGER DES VRAIES MUSIQUES"}</button>
+      <label className="upload-btn"><Upload size={16}/> IMPORTER MES MUSIQUES<input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" multiple onChange={e=>addFiles(e.target.files)}/></label>
+      <div className="library-count">{jamendoTracks.length} titres Jamendo · {tracks.length} musique{tracks.length>1?"s":""} personnelle{tracks.length>1?"s":""}</div>
+      {track?.type==="JAMENDO"&&<div className="track-credit">🎵 {track.artist}<br/><a href={track.url} target="_blank" rel="noreferrer">Écouter / voir la licence de ce titre ↗</a></div>}</div>
       <div className="side-card criteria-card"><div className="panel-label">COMMENT TU SERAS NOTÉ</div>{CRITERIA.map(c=><div className="criterion" key={c.key}><div className="criterion-top"><span>{c.icon} {c.label}</span><b>{c.max} PTS</b></div><div className="bar"><i style={{width:`${c.max/25*100}%`}}/></div></div>)}</div>
       {score&&<div className="result-card"><div className="result-head"><Trophy size={19}/> TON SCORE</div><div className="big-score">{score.total}<small>/100</small></div><b className="result-message">{score.message}</b>
         {CRITERIA.map(c=><div className="score-line" key={c.key}><span>{c.label}</span><b>{score.parts[c.key]} / {c.max}</b></div>)}<button className="replay-btn" onClick={resetGame}><RotateCcw size={15}/> RETOUR AU MENU</button></div>}
