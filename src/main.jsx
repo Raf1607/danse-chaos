@@ -89,10 +89,15 @@ function App() {
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
         throw new Error("La caméra fonctionne uniquement sur une adresse HTTPS. Ouvre le jeu avec https://raf1607.github.io/danse-chaos/ (pas avec un aperçu GitHub).");
       }
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 } }
-      });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+      } catch (firstCameraError) {
+        // Retry with the simplest possible request for unusual or external webcams.
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+      }
       streamRef.current = stream;
       const video = videoRef.current;
       if (!video) throw new Error("La fenêtre vidéo n'est pas prête. Recharge la page puis réessaie.");
