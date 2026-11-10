@@ -20,6 +20,8 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run build
+        env:
+          VITE_JAMENDO_CLIENT_ID: ${{ secrets.VITE_JAMENDO_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
