@@ -71,6 +71,7 @@ function App() {
   function stopCamera() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    if (landmarkerRef.current) { landmarkerRef.current.close(); landmarkerRef.current = null; }
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraOn(false);
@@ -83,19 +84,65 @@ function App() {
 
   async function enableCamera() {
     setError(""); setLoadingCamera(true);
+    let stream;
     try {
-      if (!navigator.mediaDevices?.getUserMedia) throw new Error("La caméra nécessite HTTPS ou localhost.");
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 }, audio: false });
-      streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-      const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-      landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task", delegate: "GPU" },
-        runningMode: "VIDEO", numPoses: 1
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        throw new Error("La caméra fonctionne uniquement sur une adresse HTTPS. Ouvre le jeu avec https://raf1607.github.io/danse-chaos/ (pas avec un aperçu GitHub).");
+      }
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 } }
       });
-      setCameraOn(true); setHint("Caméra prête. Fais-toi plaisir !"); startPoseLoop();
-    } catch (e) { stopCamera(); setError(e.message || "Impossible d'activer la caméra."); }
-    finally { setLoadingCamera(false); }
+      streamRef.current = stream;
+      const video = videoRef.current;
+      if (!video) throw new Error("La fenêtre vidéo n'est pas prête. Recharge la page puis réessaie.");
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      await new Promise((resolve, reject) => {
+        if (video.readyState >= 2) return resolve();
+        const timeout = setTimeout(() => reject(new Error("La caméra met trop de temps à démarrer. Vérifie qu'aucune autre application ne l'utilise.")), 10000);
+        video.onloadeddata = () => { clearTimeout(timeout); resolve(); };
+        video.onerror = () => { clearTimeout(timeout); reject(new Error("Impossible de lire le flux de la caméra.")); };
+      });
+      await video.play();
+
+      const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+      const options = {
+        runningMode: "VIDEO",
+        numPoses: 1,
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+          delegate: "CPU"
+        }
+      };
+      try {
+        options.baseOptions.delegate = "GPU";
+        landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, options);
+      } catch (gpuError) {
+        options.baseOptions.delegate = "CPU";
+        landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, options);
+      }
+      lastPoseRef.current = null;
+      setCameraOn(true);
+      setHint("Caméra prête. Place-toi en entier dans le cadre !");
+      startPoseLoop();
+    } catch (e) {
+      if (landmarkerRef.current) { landmarkerRef.current.close(); landmarkerRef.current = null; }
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+      const name = e?.name || "";
+      const message = name === "NotAllowedError" || name === "PermissionDeniedError"
+        ? "Accès refusé. Autorise la caméra dans les réglages du navigateur, puis recharge la page."
+        : name === "NotFoundError" || name === "DevicesNotFoundError"
+        ? "Aucune caméra détectée. Branche ou active une caméra puis réessaie."
+        : name === "NotReadableError" || name === "TrackStartError"
+        ? "La caméra est déjà utilisée par une autre application. Ferme-la puis réessaie."
+        : (e.message || "Impossible d'activer la caméra.");
+      setError(message);
+      setCameraOn(false);
+    } finally { setLoadingCamera(false); }
   }
 
   function startPoseLoop() {
