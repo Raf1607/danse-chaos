@@ -183,8 +183,11 @@ function App() {
   async function loadJamendoTracks() {
     setError(""); setLoadingJamendo(true);
     try {
-      // Public demo ID is for testing only. Replace with your registered Jamendo client_id before public release.
-      const clientId = import.meta.env.VITE_JAMENDO_CLIENT_ID || "709fa152";
+      // Jamendo's shared test client ID has been suspended. A registered app ID is required.
+      const clientId = import.meta.env.VITE_JAMENDO_CLIENT_ID;
+      if (!clientId) {
+        throw new Error("Jamendo n'est pas encore configuré : il faut ajouter l'identifiant d'une application Jamendo autorisée. En attendant, utilise les musiques intégrées ou importe tes propres fichiers.");
+      }
       const params = new URLSearchParams({
         client_id: clientId, format: "json", limit: "200", audioformat: "mp32",
         include: "licenses", ccnd: "false", order: "popularity_month"
@@ -192,7 +195,10 @@ function App() {
       const response = await fetch(`https://api.jamendo.com/v3.0/tracks/?${params.toString()}`);
       if (!response.ok) throw new Error("Jamendo ne répond pas pour le moment.");
       const data = await response.json();
-      if (data.headers?.status !== "success") throw new Error(data.headers?.error_message || "Réponse Jamendo invalide.");
+      if (data.headers?.code === 11) {
+        throw new Error("Jamendo a suspendu cet identifiant d'application. Il faut utiliser un identifiant personnel valide créé sur le portail développeur Jamendo.");
+      }
+      if (data.headers?.status !== "success" && data.headers?.status !== "succeed") throw new Error(data.headers?.error_message || "Réponse Jamendo invalide.");
       const usable = (data.results || []).filter(t =>
         t.audio && t.license_ccurl && !/\\bnd\\b|by-nc-nd|by-nd/i.test(t.license_ccurl)
       ).map(t => ({
