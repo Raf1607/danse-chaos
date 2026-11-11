@@ -44,7 +44,12 @@ function scoreDance(samples) {
   if (samples.length < 12) return { total: 0, parts: Object.fromEntries(CRITERIA.map(c => [c.key, 0])), message: "La caméra n'a pas détecté assez de mouvements. Place-toi bien dans le cadre et réessaie !" };
   const motions = samples.map(s => s.activity || 0);
   const avg = motions.reduce((a, b) => a + b, 0) / motions.length;
-  const active = motions.filter(v => v > 0.012).length / motions.length;
+  const active = motions.filter(v => v > 0.035).length / motions.length;
+  // A stationary player must not earn points from landmark jitter or a static pose.
+  if (avg < 0.018 || active < 0.10) {
+    const parts = Object.fromEntries(CRITERIA.map(c => [c.key, 0]));
+    return { total: 0, parts, message: "Aucun mouvement détecté. Bouge davantage pendant les 15 secondes !" };
+  }
   const peaks = [];
   for (let i = 1; i < motions.length - 1; i++) {
     if (motions[i] >= motions[i - 1] && motions[i] > motions[i + 1] && motions[i] > Math.max(0.018, avg * 1.2)) {
@@ -68,9 +73,9 @@ function scoreDance(samples) {
   const parts = {
     originality: Math.round(25 * Math.min(1, Math.max(0, (unique.length - 1) / 12))),
     rhythm: Math.round(25 * rhythm),
-    energy: Math.round(20 * (Math.min(1, avg / 0.22) * 0.75 + active * 0.25)),
+    energy: Math.round(20 * (Math.min(1, Math.max(0, avg - 0.018) / 0.18) * 0.7 + Math.min(1, active / 0.45) * 0.3)),
     variety: Math.round(15 * Math.min(1, changes / (samples.length * 0.35))),
-    coordination: Math.round(15 * Math.max(0, Math.min(1, consistency)))
+    coordination: Math.round(15 * Math.max(0, Math.min(1, consistency)) * Math.min(1, active / 0.35))
   };
   const total = Object.values(parts).reduce((a, b) => a + b, 0);
   return { total, parts, message: total >= 85 ? "LÉGENDE DU DANCEFLOOR 🔥" : total >= 65 ? "Très belle performance !" : total >= 40 ? "Pas mal du tout !" : "Le chaos est en toi. Continue !" };
@@ -81,6 +86,7 @@ function App() {
   const streamRef = useRef(null), rafRef = useRef(null), samplesRef = useRef([]);
   const audioRef = useRef(null), synthRef = useRef(null), timerRef = useRef(null), lastPoseRef = useRef(null), lastSampleAtRef = useRef(0), recorderRef = useRef(null), recordingChunksRef = useRef([]), discardRecordingRef = useRef(false);
   const [cameraOn, setCameraOn] = useState(false), [loadingCamera, setLoadingCamera] = useState(false);
+  const [framingOk, setFramingOk] = useState(false), [framingMessage, setFramingMessage] = useState("Place ta tête et ton haut du corps dans le cadre.");
   const [jamendoTracks, setJamendoTracks] = useState([]), [loadingJamendo, setLoadingJamendo] = useState(false);
   const [phase, setPhase] = useState("home"), [tracks, setTracks] = useState([]);
   const [track, setTrack] = useState(null), [timeLeft, setTimeLeft] = useState(ROUND_SECONDS);
@@ -96,6 +102,7 @@ function App() {
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraOn(false);
+    setFramingOk(false);
   }
   useEffect(() => () => {
     stopCamera(); clearInterval(timerRef.current);
@@ -151,7 +158,8 @@ function App() {
       }
       lastPoseRef.current = null;
       setCameraOn(true);
-      setHint("Caméra prête. Place-toi en entier dans le cadre !");
+      setFramingOk(false);
+      setHint("Place ta tête, tes épaules et ton buste dans le cadre.");
       startPoseLoop();
     } catch (e) {
       if (landmarkerRef.current) { landmarkerRef.current.close(); landmarkerRef.current = null; }
@@ -178,6 +186,15 @@ function App() {
         try {
           const lm = landmarkerRef.current.detectForVideo(video, performance.now()).landmarks?.[0];
           if (lm) {
+            const headVisible = (lm[0]?.visibility || 0) > 0.5;
+            const shouldersVisible = (lm[11]?.visibility || 0) > 0.5 && (lm[12]?.visibility || 0) > 0.5;
+            const torsoVisible = (lm[23]?.visibility || 0) > 0.35 && (lm[24]?.visibility || 0) > 0.35;
+            const validFrame = headVisible && shouldersVisible && torsoVisible;
+            setFramingOk(previous => previous === validFrame ? previous : validFrame);
+            setFramingMessage(validFrame ? "Cadrage validé : tête et haut du corps détectés." : "Recule ou ajuste la caméra : tête, épaules et buste doivent être visibles.");
+            if (!validFrame) {
+              lastPoseRef.current = null;
+            } else {
             const ids = [11,12,13,14,15,16,23,24,25,26,27,28];
             const visible = ids.map(i => lm[i]).filter(p => p && p.visibility > 0.35);
             const cx = visible.reduce((a,p) => a+p.x,0) / Math.max(1,visible.length);
@@ -194,7 +211,9 @@ function App() {
             }
             const now=performance.now();
             if(now-lastSampleAtRef.current>=100){
-              samplesRef.current.push({activity:Math.min(1,movement*2.8+spread*.22+Math.abs(left-right)*.12),left,right,time:(now-(window.__danceStartTime||now))/1000});
+              // Ignore tiny pose-estimation fluctuations; only real joint displacement counts.
+              const cleanMovement = Math.max(0, movement - 0.012);
+              samplesRef.current.push({activity:Math.min(1,cleanMovement*3.5),left,right,time:(now-(window.__danceStartTime||now))/1000});
               lastPoseRef.current = {x:cx,y:cy,points:jointPoints};
               lastSampleAtRef.current=now;
             }
@@ -203,6 +222,11 @@ function App() {
               ctx.clearRect(0,0,c.width,c.height); ctx.fillStyle="#d7a5ff";
               for (const p of lm) if (p.visibility>.5) {ctx.beginPath();ctx.arc(p.x*c.width,p.y*c.height,4,0,Math.PI*2);ctx.fill();}
             }
+            }
+          } else {
+            setFramingOk(false);
+            setFramingMessage("Je ne détecte pas ton corps. Replace-toi face à la caméra.");
+            lastPoseRef.current = null;
           }
         } catch {}
       }
@@ -279,6 +303,7 @@ function App() {
     if (replayUrl) { URL.revokeObjectURL(replayUrl); setReplayUrl(null); }
     discardRecordingRef.current = false;
     if(!cameraOn){setError("Active la caméra avant de lancer une partie.");return;}
+    if(!framingOk){setError("Impossible de démarrer : place ta tête, tes épaules et ton buste dans le cadre.");return;}
     const chosen=pickRandomTrack();setTrack(chosen);setPhase("preview");setHint("Écoute bien… tu as 5 secondes !");
     try {
       await playTrackSegment(chosen,true);
@@ -348,12 +373,14 @@ function App() {
     </section>
     <section className="game-layout"><div className="play-panel"><div className="panel-head"><span className="panel-label">ZONE DE JEU</span><span className={`phase-tag ${phase}`}>{phase==="home"?"EN ATTENTE":phase==="preview"?"ÉCOUTE":phase==="dance"?"EN DANSE":"RÉSULTAT"}</span></div>
       <div className="stage"><div className="camera-frame"><video ref={videoRef} autoPlay muted playsInline className={cameraOn?"video visible":"video"}/>{phase==="result" && replayUrl && <video ref={replayVideoRef} src={replayUrl} autoPlay muted playsInline className="replay-video" onTimeUpdate={handleReplayProgress} onEnded={finishReplay} onError={finishReplay}/>}<canvas ref={canvasRef} className="pose-canvas"/>
+        {cameraOn&&!framingOk&&phase!=="result"&&<div className="framing-overlay">⚠️ {framingMessage}</div>}
         {!cameraOn&&<div className="camera-placeholder"><div className="camera-icon"><CameraOff size={32}/></div><b>CAMÉRA EN VEILLE</b><span>Active-la pour analyser tes mouvements</span></div>}
         {phase==="dance"&&<div className="countdown"><span>{timeLeft}</span><small>SECONDES</small></div>}
         {phase==="result"&&replayUrl&&<div className="replay-badge">🎬 REPLAY DE TA DANSE · SCORE EN DIRECT</div>}{phase==="preview"&&<div className="preview-overlay"><span className="sound-wave">♫</span><b>ÉCOUTE LA MUSIQUE</b><small>5 SECONDES POUR DEVINER</small></div>}
       </div><div className="stage-caption"><span className="equalizer"><i/><i/><i/><i/><i/></span>{hint}</div></div>
       <div className="controls">{!cameraOn?<button className="secondary-btn" onClick={enableCamera} disabled={loadingCamera}>{loadingCamera?"CHARGEMENT…":<><Camera size={17}/> ACTIVER LA CAMÉRA</>}</button>:<button className="secondary-btn stop-btn" onClick={stopCamera}><CameraOff size={17}/> ARRÊTER LA CAMÉRA</button>}
-        {phase==="home"||phase==="result"?<button className="primary-btn" onClick={startGame}><Play size={18} fill="currentColor"/> {phase==="result"?"REJOUER":"LANCER LE CHAOS"}</button>:<button className="primary-btn" disabled><Zap size={18}/> {phase==="preview"?"ÉCOUTE…":"EN PLEINE DANSE"}</button>}</div>
+        {phase==="home"||phase==="result"?<button className="primary-btn" onClick={startGame} disabled={!cameraOn||!framingOk}><Play size={18} fill="currentColor"/> {phase==="result"?"REJOUER":"LANCER LE CHAOS"}</button>:<button className="primary-btn" disabled><Zap size={18}/> {phase==="preview"?"ÉCOUTE…":"EN PLEINE DANSE"}</button>}</div>
+      {cameraOn&&<div className={framingOk?"frame-status valid":"frame-status"}>{framingOk?"✓ ":""}{framingMessage}</div>}
       {error&&<div className="error-msg">{error}</div>}
       <div className="volume-row"><Volume2 size={16}/><input aria-label="Volume" type="range" min="0" max="1" step=".05" value={volume} onChange={e=>setVolume(Number(e.target.value))}/><span>{Math.round(volume*100)}%</span></div>
     </div>
