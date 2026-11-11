@@ -4,7 +4,7 @@ import { Camera, CameraOff, Music2, Play, Upload, Trophy, RotateCcw, Volume2, Sp
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import "./style.css";
 
-const ROUND_SECONDS = 30;
+const ROUND_SECONDS = 15;
 const CRITERIA = [
   { key: "originality", label: "Originalité", max: 25, icon: "✨" },
   { key: "rhythm", label: "Rythme", max: 25, icon: "🥁" },
