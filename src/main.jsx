@@ -83,7 +83,7 @@ function scoreDance(samples) {
 
 function App() {
   const videoRef = useRef(null), replayVideoRef = useRef(null), canvasRef = useRef(null), landmarkerRef = useRef(null);
-  const streamRef = useRef(null), rafRef = useRef(null), samplesRef = useRef([]);
+  const streamRef = useRef(null), rafRef = useRef(null), samplesRef = useRef([]), smoothLandmarksRef = useRef(null);
   const audioRef = useRef(null), synthRef = useRef(null), timerRef = useRef(null), lastPoseRef = useRef(null), lastSampleAtRef = useRef(0), recorderRef = useRef(null), recordingChunksRef = useRef([]), discardRecordingRef = useRef(false);
   const [cameraOn, setCameraOn] = useState(false), [loadingCamera, setLoadingCamera] = useState(false);
   const [framingOk, setFramingOk] = useState(false), [framingMessage, setFramingMessage] = useState("Place ta tête et ton haut du corps dans le cadre.");
@@ -157,6 +157,7 @@ function App() {
         landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, options);
       }
       lastPoseRef.current = null;
+      smoothLandmarksRef.current = null;
       setCameraOn(true);
       setFramingOk(false);
       setHint("Place ta tête, tes épaules et ton buste dans le cadre.");
@@ -184,8 +185,18 @@ function App() {
       const video = videoRef.current;
       if (video && video.readyState >= 2 && landmarkerRef.current) {
         try {
-          const lm = landmarkerRef.current.detectForVideo(video, performance.now()).landmarks?.[0];
+          let lm = landmarkerRef.current.detectForVideo(video, performance.now()).landmarks?.[0];
           if (lm) {
+            // Smooth landmark coordinates to reduce visible dot jitter and false movement.
+            const previousLandmarks = smoothLandmarksRef.current;
+            lm = lm.map((point, index) => {
+              if (!point) return point;
+              const previous = previousLandmarks?.[index];
+              return previous
+                ? { ...point, x: previous.x * 0.6 + point.x * 0.4, y: previous.y * 0.6 + point.y * 0.4 }
+                : point;
+            });
+            smoothLandmarksRef.current = lm;
             const headVisible = (lm[0]?.visibility || 0) > 0.5;
             const shouldersVisible = (lm[11]?.visibility || 0) > 0.5 && (lm[12]?.visibility || 0) > 0.5;
             const torsoVisible = (lm[23]?.visibility || 0) > 0.35 && (lm[24]?.visibility || 0) > 0.35;
@@ -194,6 +205,7 @@ function App() {
             setFramingMessage(validFrame ? "Cadrage validé : tête et haut du corps détectés." : "Recule ou ajuste la caméra : tête, épaules et buste doivent être visibles.");
             if (!validFrame) {
               lastPoseRef.current = null;
+              smoothLandmarksRef.current = null;
             } else {
             const ids = [11,12,13,14,15,16,23,24,25,26,27,28];
             const visible = ids.map(i => lm[i]).filter(p => p && p.visibility > 0.35);
@@ -227,6 +239,7 @@ function App() {
             setFramingOk(false);
             setFramingMessage("Je ne détecte pas ton corps. Replace-toi face à la caméra.");
             lastPoseRef.current = null;
+            smoothLandmarksRef.current = null;
           }
         } catch {}
       }
