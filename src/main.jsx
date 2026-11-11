@@ -89,25 +89,25 @@ function scoreDance(samples) {
 
 function StickDancer() {
   return <div className="memory-dancer">
-    <svg className="trend-mascot" viewBox="0 0 240 330" role="img" aria-label="Bonhomme bâton violet qui danse la chorégraphie">
+    <svg className="trend-mascot" viewBox="0 0 240 330" role="img" aria-label="Mascotte lumineuse qui reproduit la chorégraphie">
       <g className="mascot-body">
-        <circle className="mascot-head" cx="120" cy="47" r="31"/>
-        <g className="mascot-glasses"><path d="M91 39 Q105 31 118 38 L117 53 Q103 61 94 50Z"/><path d="M122 38 Q137 31 149 39 L145 51 Q134 60 122 53Z"/><path d="M117 42 L123 42"/></g>
-        <path className="mascot-neck" d="M120 77 L120 88"/>
-        <path className="mascot-torso" d="M120 88 Q101 119 106 171 Q120 184 134 171 Q139 119 120 88Z"/>
-        <g className="mascot-arm mascot-arm-l"><path d="M108 99 Q82 111 67 136" /><path d="M67 136 Q51 148 39 129"/></g>
-        <g className="mascot-arm mascot-arm-r"><path d="M132 99 Q158 111 173 136"/><path d="M173 136 Q189 148 201 129"/></g>
-        <g className="mascot-leg mascot-leg-l"><path d="M111 171 Q92 209 83 248"/><path d="M83 248 Q77 269 66 282"/></g>
-        <g className="mascot-leg mascot-leg-r"><path d="M129 171 Q148 209 157 248"/><path d="M157 248 Q163 269 174 282"/></g>
-        <g className="mascot-shoe"><path d="M43 282 Q61 273 78 282 L86 294 Q65 307 39 297Z"/><path d="M162 282 Q179 273 197 282 L201 297 Q175 307 154 294Z"/><path d="M47 291 L77 291 M161 291 L192 291"/></g>
+        <circle className="mascot-head" cx="120" cy="47" r="34"/>
+        <path className="mascot-eye" d="M99 48 Q105 39 111 48 M130 48 Q136 39 142 48"/>
+        <path className="mascot-smile" d="M108 61 Q120 72 132 61"/>
+        <path className="mascot-neck" d="M120 80 L120 91"/>
+        <path className="mascot-torso" d="M120 89 Q99 119 105 171 Q120 184 135 171 Q141 119 120 89Z"/>
+        <g className="mascot-arm mascot-arm-l"><path d="M108 101 Q83 111 69 136 Q57 151 43 133"/></g>
+        <g className="mascot-arm mascot-arm-r"><path d="M132 101 Q157 111 171 136 Q183 151 197 133"/></g>
+        <g className="mascot-leg mascot-leg-l"><path d="M111 171 Q91 208 82 248 Q77 268 64 282"/></g>
+        <g className="mascot-leg mascot-leg-r"><path d="M129 171 Q149 208 158 248 Q163 268 176 282"/></g>
+        <g className="mascot-shoe"><path d="M42 282 Q61 272 79 282 L88 296 Q64 309 38 298Z"/><path d="M161 282 Q179 272 198 282 L203 298 Q176 309 152 296Z"/><path d="M47 291 L78 291 M160 291 L194 291"/></g>
       </g>
     </svg>
-    <b>REGARDE ET MÉMORISE !</b><small>La danseuse au pantalon beige · Mauvais Djo</small>
+    <b>REGARDE ET MÉMORISE !</b><small>Chorégraphie inspirée de ta vidéo · 15 secondes</small>
   </div>;
 }
-
 function App() {
-  const videoRef = useRef(null), replayVideoRef = useRef(null), canvasRef = useRef(null), landmarkerRef = useRef(null);
+  const videoRef = useRef(null), replayVideoRef = useRef(null), musicVideoRef = useRef(null), canvasRef = useRef(null), landmarkerRef = useRef(null);
   const streamRef = useRef(null), rafRef = useRef(null), samplesRef = useRef([]), smoothLandmarksRef = useRef(null);
   const audioRef = useRef(null), synthRef = useRef(null), timerRef = useRef(null), lastPoseRef = useRef(null), lastSampleAtRef = useRef(0), recorderRef = useRef(null), recordingChunksRef = useRef([]), discardRecordingRef = useRef(false);
   const [cameraOn, setCameraOn] = useState(false), [loadingCamera, setLoadingCamera] = useState(false);
@@ -318,6 +318,8 @@ function App() {
   }
   function pickRandomTrack() {
     const originals=[{id:"synth-troll",name:"BIP BIP CHAOS",type:"TROLL"},{id:"synth-arcade",name:"ARCADE PANIC",type:"ARCADE"},{id:"synth-chill",name:"BANANA GROOVE",type:"SYNTH"}];
+    const videoReference=tracks.find(t=>t.type==="VIDEO");
+    if(videoReference) return {...videoReference,name:"Mauvais Djo · audio de ta vidéo"};
     const options=[...tracks,...jamendoTracks,...(jamendoTracks.length ? [] : originals)];
     const chosen=options[Math.floor(Math.random()*options.length)];
     return chosen.type==="UPLOAD"?chosen:{...chosen,seed:Math.floor(Math.random()*999999)};
@@ -325,6 +327,16 @@ function App() {
   async function playTrackSegment(selected, preview=false) {
     if(audioRef.current){audioRef.current.pause();audioRef.current=null;}
     if(synthRef.current){try{synthRef.current.source.stop();if(synthRef.current.ownsContext)synthRef.current.ctx.close();}catch{} synthRef.current=null;}
+    if(selected.type==="VIDEO"){
+      const player=musicVideoRef.current;
+      if(!player) throw new Error("Le lecteur vidéo de référence n'est pas prêt.");
+      player.pause(); player.src=selected.url; player.volume=volume; player.muted=false; audioRef.current=player;
+      await new Promise((resolve,reject)=>{if(player.readyState>=1)return resolve();player.onloadedmetadata=resolve;player.onerror=()=>reject(new Error("Impossible de lire l'audio de cette vidéo."));});
+      const duration=Number.isFinite(player.duration)?player.duration:40, maxStart=Math.max(0,duration-ROUND_SECONDS);
+      player.currentTime=selected.fixedOffset ?? Math.random()*maxStart; selected.fixedOffset=player.currentTime; await player.play();
+      if(preview)await new Promise(resolve=>setTimeout(resolve,ROUND_SECONDS*1000));
+      return;
+    }
     if(selected.type==="UPLOAD" || selected.type==="JAMENDO"){
       const audio=new Audio(); audio.crossOrigin="anonymous"; audio.src=selected.type==="JAMENDO"?selected.audio:selected.url; audio.volume=volume; audioRef.current=audio;
       await new Promise(resolve=>{audio.onloadedmetadata=resolve;audio.onerror=resolve;});
@@ -448,7 +460,7 @@ function App() {
       <div className="stats-row"><div><Music2/><b>ALÉATOIRE</b><small>Musique surprise</small></div><div><Camera/><b>CAMÉRA</b><small>Analyse en direct</small></div><div><Trophy/><b>/100</b><small>Score final</small></div></div>
     </section>
     <section className="game-layout"><div className="play-panel"><div className="panel-head"><span className="panel-label">ZONE DE JEU</span><span className={`phase-tag ${phase}`}>{phase==="home"?"EN ATTENTE":phase==="memorize"?"MÉMORISE":phase==="preview"?"ÉCOUTE":phase==="dance"?"À TOI DE JOUER":"RÉSULTAT"}</span></div>
-      <div className={phase==="result"&&replayUrl?"replay-layout":""}><div className="stage"><div className="camera-frame"><video ref={videoRef} autoPlay muted playsInline className={cameraOn?"video visible":"video"}/>{phase==="result" && replayUrl && <video ref={replayVideoRef} src={replayUrl} autoPlay controls playsInline className="replay-video" onTimeUpdate={handleReplayProgress} onEnded={finishReplay} onError={()=>setHint("Lecture du replay impossible. Appuie sur lecture dans le lecteur vidéo.")}/>}<canvas ref={canvasRef} className="pose-canvas"/>
+      <div className={phase==="result"&&replayUrl?"replay-layout":""}><div className="stage"><div className="camera-frame"><video ref={videoRef} autoPlay muted playsInline className={cameraOn?"video visible":"video"}/><video ref={musicVideoRef} playsInline preload="auto" className="music-source-video" aria-hidden="true"/>{phase==="result" && replayUrl && <video ref={replayVideoRef} src={replayUrl} autoPlay controls playsInline className="replay-video" onTimeUpdate={handleReplayProgress} onEnded={finishReplay} onError={()=>setHint("Lecture du replay impossible. Appuie sur lecture dans le lecteur vidéo.")}/>}<canvas ref={canvasRef} className="pose-canvas"/>
         {cameraOn&&!framingOk&&phase!=="result"&&<div className="framing-overlay">ℹ️ {framingMessage} — tu peux quand même jouer</div>}
         {!cameraOn&&<div className="camera-placeholder"><div className="camera-icon"><CameraOff size={32}/></div><b>CAMÉRA EN VEILLE</b><span>Active-la pour analyser tes mouvements</span></div>}
         {phase==="memorize"&&<div className="memory-overlay"><StickDancer/></div>}{phase==="dance"&&<div className="countdown"><span>{timeLeft}</span><small>SECONDES</small></div>}
@@ -463,10 +475,10 @@ function App() {
     </div>
     <aside className="side-panel">      <div className="side-card room-card"><div className="panel-label">SALON & BATTLES ENTRE AMIS</div>{!roomCode?<><input className="room-name-input" value={playerName} onChange={e=>setPlayerName(e.target.value.slice(0,18))} placeholder="Ton pseudo (18 caractères max)"/><button className="jamendo-btn" onClick={createRoom}>CRÉER UN SALON</button><button className="random-mode-btn" onClick={isRandomSearching?closeRoom:startRandomMode}>{isRandomSearching?"ANNULER LA RECHERCHE":"⚡ JOUER EN MODE RANDOM"}</button><div className="room-join"><input value={joinCode} onChange={e=>setJoinCode(e.target.value.replace(/[^0-9]/g,"").slice(0,6))} placeholder="Code à 6 chiffres" maxLength={6}/><button onClick={joinRoom}>REJOINDRE</button></div></>:<><div className="room-code">CODE DU SALON : <b>{roomCode}</b></div><div className="room-players">{roomPlayers.map((p,i)=><span key={p.id||i}>🕺 {p.name||"Joueur"}</span>)}</div>{isRoomHost&&<button className="jamendo-btn" onClick={startRoomBattle}>LANCER LA BATTLE</button>}<button className="room-close" onClick={closeRoom}>QUITTER LE SALON</button></>}<div className="room-status">{roomStatus}</div><div className="room-privacy">Les replays de la battle sont partagés avec les membres du salon.</div></div>
       {battleResults.length>0&&<div className="side-card battle-results"><div className="panel-label">🏆 CLASSEMENT DE LA BATTLE</div><div className="winner-banner">GAGNANT : {battleResults[0]?.name} · {battleResults[0]?.score.total}/100</div>{battleResults.map((r,i)=><div className="battle-result" key={r.id}><b>{i+1}. {r.name} — {r.score.total}/100</b>{r.videoUrl&&<video src={r.videoUrl} controls playsInline/>}</div>)}</div>}
-<div className="side-card"><div className="panel-label">BIBLIOTHÈQUE MUSICALE</div><div className="music-feature"><div className="music-art"><Music2 size={30}/><span>?</span></div><div><b>{track?track.name:"LA PROCHAINE SURPRISE"}</b><small>{track?(track.type==="UPLOAD"?"TON FICHIER":track.type==="JAMENDO"?"JAMENDO · "+track.artist:"PISTE ORIGINALE DU JEU"):"Morceaux indépendants + tes musiques"}</small></div></div>
+<div className="side-card"><div className="panel-label">BIBLIOTHÈQUE MUSICALE</div><div className="music-feature"><div className="music-art"><Music2 size={30}/><span>?</span></div><div><b>{track?track.name:"LA PROCHAINE SURPRISE"}</b><small>{track?(track.type==="VIDEO"?"AUDIO EXTRAIT DE TA VIDÉO":track.type==="UPLOAD"?"TON FICHIER":track.type==="JAMENDO"?"JAMENDO · "+track.artist:"PISTE ORIGINALE DU JEU"):"Morceaux indépendants + tes musiques"}</small></div></div>
       <button className="jamendo-btn" onClick={loadJamendoTracks} disabled={loadingJamendo}><Music2 size={16}/> {loadingJamendo?"CHARGEMENT JAMENDO…":"CHARGER DES VRAIES MUSIQUES"}</button>
-      <label className="upload-btn"><Upload size={16}/> IMPORTER MES MUSIQUES<input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" multiple onChange={e=>addFiles(e.target.files)}/></label>
-      <div className="library-count">{jamendoTracks.length} titres Jamendo · {tracks.length} musique{tracks.length>1?"s":""} personnelle{tracks.length>1?"s":""}</div>
+      <label className="upload-btn"><Upload size={16}/> IMPORTER MUSIQUE OU VIDÉO DE RÉFÉRENCE<input type="file" accept="audio/*,video/*,.mp3,.wav,.ogg,.m4a,.mp4,.mov,.webm" multiple onChange={e=>addFiles(e.target.files)}/></label>
+      <div className="library-count">{jamendoTracks.length} titres Jamendo · {tracks.length} fichier{tracks.length>1?"s":""} personnel{tracks.length>1?"s":""}</div>
       {track?.type==="JAMENDO"&&<div className="track-credit">🎵 {track.artist}<br/><a href={track.url} target="_blank" rel="noreferrer">Écouter / voir la licence de ce titre ↗</a></div>}</div>
       <div className="side-card criteria-card"><div className="panel-label">COMMENT TU SERAS NOTÉ</div>{CRITERIA.map(c=><div className="criterion" key={c.key}><div className="criterion-top"><span>{c.icon} {c.label}</span><b>{c.max} PTS</b></div><div className="bar"><i style={{width:`${c.max/25*100}%`}}/></div></div>)}</div>
 
