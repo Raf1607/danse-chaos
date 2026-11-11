@@ -68,3 +68,83 @@ footer{display:flex;justify-content:space-between;padding:28px 2px;color:#71677e
 @keyframes arm-right{to{transform:rotate(30deg)}}
 @keyframes leg-left{to{transform:rotate(-22deg)}}
 @keyframes leg-right{to{transform:rotate(35deg)}}
+
+
+/* Mascotte DANCE CHAOS : silhouette blanche, contour noir et halo violet */
+.memory-overlay{background:radial-gradient(ellipse at 50% 55%,#34135f 0%,#130923 72%)}
+.memory-dancer{gap:12px}
+.trend-mascot{width:min(230px,58vw);height:300px;overflow:visible;filter:drop-shadow(0 0 5px #fff) drop-shadow(0 0 13px #a43cff)}
+.mascot-body{transform-origin:120px 170px;animation:trend-body 5.2s ease-in-out infinite}
+.mascot-head{fill:#fff;stroke:#100b18;stroke-width:7}
+.mascot-glasses{fill:#100b18;stroke:#100b18;stroke-width:3;stroke-linejoin:round}
+.mascot-neck{stroke:#fff;stroke-width:11;stroke-linecap:round}
+.mascot-torso{fill:#fff;stroke:#100b18;stroke-width:7;stroke-linejoin:round}
+.mascot-arm,.mascot-leg{fill:none;stroke:#fff;stroke-width:17;stroke-linecap:round;stroke-linejoin:round;paint-order:stroke}
+.mascot-arm path,.mascot-leg path{stroke:#fff;stroke-width:17;stroke-linecap:round;stroke-linejoin:round}
+.mascot-arm{filter:drop-shadow(0 0 2px #100b18)}
+.mascot-arm-l{transform-origin:108px 99px;animation:trend-arm-left 5.2s ease-in-out infinite}
+.mascot-arm-r{transform-origin:132px 99px;animation:trend-arm-right 5.2s ease-in-out infinite}
+.mascot-leg-l{transform-origin:111px 171px;animation:trend-leg-left 5.2s ease-in-out infinite}
+.mascot-leg-r{transform-origin:129px 171px;animation:trend-leg-right 5.2s ease-in-out infinite}
+.mascot-shoe{fill:#fff;stroke:#100b18;stroke-width:6;stroke-linejoin:round}
+.mascot-shoe path:last-child{fill:none;stroke:#100b18;stroke-width:3}
+@keyframes trend-body{
+  0%,5%{transform:translateY(0) rotate(0)}
+  12%{transform:translateY(-3px) rotate(-5deg)}
+  20%{transform:translateY(1px) rotate(7deg)}
+  29%{transform:translateY(-2px) rotate(-8deg)}
+  39%{transform:translateY(0) rotate(5deg)}
+  50%{transform:translateY(3px) rotate(-4deg)}
+  62%{transform:translateY(-2px) rotate(8deg)}
+  73%{transform:translateY(5px) rotate(-9deg)}
+  85%{transform:translateY(10px) rotate(4deg)}
+  94%,100%{transform:translateY(0) rotate(0)}
+}
+@keyframes trend-arm-left{
+  0%,5%{transform:rotate(0)}
+  12%{transform:rotate(-42deg)}
+  20%{transform:rotate(25deg)}
+  29%{transform:rotate(-68deg)}
+  39%{transform:rotate(-105deg)}
+  50%{transform:rotate(38deg)}
+  62%{transform:rotate(-32deg)}
+  73%{transform:rotate(50deg)}
+  85%{transform:rotate(18deg)}
+  100%{transform:rotate(0)}
+}
+@keyframes trend-arm-right{
+  0%,5%{transform:rotate(0)}
+  12%{transform:rotate(30deg)}
+  20%{transform:rotate(-52deg)}
+  29%{transform:rotate(65deg)}
+  39%{transform:rotate(95deg)}
+  50%{transform:rotate(-42deg)}
+  62%{transform:rotate(36deg)}
+  73%{transform:rotate(-48deg)}
+  85%{transform:rotate(-15deg)}
+  100%{transform:rotate(0)}
+}
+@keyframes trend-leg-left{
+  0%,5%{transform:rotate(0)}
+  12%{transform:rotate(-12deg)}
+  20%{transform:rotate(16deg)}
+  29%{transform:rotate(-20deg)}
+  39%{transform:rotate(18deg)}
+  50%{transform:rotate(-12deg)}
+  62%{transform:rotate(20deg)}
+  73%{transform:rotate(-25deg)}
+  85%{transform:rotate(32deg)}
+  100%{transform:rotate(0)}
+}
+@keyframes trend-leg-right{
+  0%,5%{transform:rotate(0)}
+  12%{transform:rotate(14deg)}
+  20%{transform:rotate(-17deg)}
+  29%{transform:rotate(19deg)}
+  39%{transform:rotate(-14deg)}
+  50%{transform:rotate(17deg)}
+  62%{transform:rotate(-18deg)}
+  73%{transform:rotate(25deg)}
+  85%{transform:rotate(-28deg)}
+  100%{transform:rotate(0)}
+}
