@@ -89,13 +89,20 @@ function scoreDance(samples) {
 
 function StickDancer() {
   return <div className="memory-dancer">
-    <div className="memory-stickman">
-      <i className="stick-head"/><i className="stick-body"/>
-      <i className="stick-arm left"/><i className="stick-arm right"/>
-      <i className="stick-leg left"/><i className="stick-leg right"/>
-      <i className="stick-shoe left"/><i className="stick-shoe right"/>
-    </div>
-    <b>REGARDE ET MÉMORISE !</b><small>La chorégraphie va disparaître…</small>
+    <svg className="trend-mascot" viewBox="0 0 240 330" role="img" aria-label="Bonhomme bâton violet qui danse la chorégraphie">
+      <g className="mascot-body">
+        <circle className="mascot-head" cx="120" cy="47" r="31"/>
+        <g className="mascot-glasses"><path d="M91 39 Q105 31 118 38 L117 53 Q103 61 94 50Z"/><path d="M122 38 Q137 31 149 39 L145 51 Q134 60 122 53Z"/><path d="M117 42 L123 42"/></g>
+        <path className="mascot-neck" d="M120 77 L120 88"/>
+        <path className="mascot-torso" d="M120 88 Q101 119 106 171 Q120 184 134 171 Q139 119 120 88Z"/>
+        <g className="mascot-arm mascot-arm-l"><path d="M108 99 Q82 111 67 136" /><path d="M67 136 Q51 148 39 129"/></g>
+        <g className="mascot-arm mascot-arm-r"><path d="M132 99 Q158 111 173 136"/><path d="M173 136 Q189 148 201 129"/></g>
+        <g className="mascot-leg mascot-leg-l"><path d="M111 171 Q92 209 83 248"/><path d="M83 248 Q77 269 66 282"/></g>
+        <g className="mascot-leg mascot-leg-r"><path d="M129 171 Q148 209 157 248"/><path d="M157 248 Q163 269 174 282"/></g>
+        <g className="mascot-shoe"><path d="M43 282 Q61 273 78 282 L86 294 Q65 307 39 297Z"/><path d="M162 282 Q179 273 197 282 L201 297 Q175 307 154 294Z"/><path d="M47 291 L77 291 M161 291 L192 291"/></g>
+      </g>
+    </svg>
+    <b>REGARDE ET MÉMORISE !</b><small>La danseuse au pantalon beige · Mauvais Djo</small>
   </div>;
 }
 
