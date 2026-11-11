@@ -35,9 +35,12 @@ function makeSynthTrack(kind, seed) {
   const source = ctx.createBufferSource();
   source.buffer = buffer;
   const gain = ctx.createGain();
+  const recordDestination = ctx.createMediaStreamDestination();
   gain.gain.value = 0.72;
-  source.connect(gain).connect(ctx.destination);
-  return { ctx, source, duration, gain };
+  source.connect(gain);
+  gain.connect(ctx.destination);
+  gain.connect(recordDestination);
+  return { ctx, source, duration, gain, audioStream: recordDestination.stream };
 }
 
 function scoreDance(samples) {
@@ -298,7 +301,7 @@ function App() {
     if(audioRef.current){audioRef.current.pause();audioRef.current=null;}
     if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{} synthRef.current=null;}
     if(selected.type==="UPLOAD" || selected.type==="JAMENDO"){
-      const audio=new Audio(selected.type==="JAMENDO"?selected.audio:selected.url); audio.volume=volume; audioRef.current=audio;
+      const audio=new Audio(selected.type==="JAMENDO"?selected.audio:selected.url); audio.volume=volume; audio.crossOrigin="anonymous"; audioRef.current=audio;
       await new Promise(resolve=>{audio.onloadedmetadata=resolve;audio.onerror=resolve;});
       const duration=audio.duration||40, maxStart=Math.max(0,duration-(preview?5:ROUND_SECONDS));
       audio.currentTime=Math.random()*maxStart; await audio.play();
@@ -323,17 +326,27 @@ function App() {
       if(audioRef.current)audioRef.current.pause();
       if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{}synthRef.current=null;}
       setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;lastSampleAtRef.current=0;window.__danceStartTime=performance.now();setHint("C'EST PARTI ! DANSE !");
+      await playTrackSegment(chosen,false);
+      // Capture la vidéo et la musique ensemble pour un replay synchronisé.
       recordingChunksRef.current = [];
       if (streamRef.current && window.MediaRecorder) {
         try {
-          const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
-          const recorder = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
+          let audioTracks = [];
+          if (synthRef.current?.audioStream) {
+            audioTracks = synthRef.current.audioStream.getAudioTracks();
+          } else if (audioRef.current) {
+            const capturedAudio = audioRef.current.captureStream ? audioRef.current.captureStream() : audioRef.current.mozCaptureStream ? audioRef.current.mozCaptureStream() : null;
+            if (capturedAudio) audioTracks = capturedAudio.getAudioTracks();
+          }
+          const combinedStream = new MediaStream([...streamRef.current.getVideoTracks(), ...audioTracks]);
+          const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
+          const recorder = new MediaRecorder(combinedStream, mimeType ? { mimeType } : undefined);
           recorder.ondataavailable = event => { if (event.data?.size) recordingChunksRef.current.push(event.data); };
           recorder.onstop = () => {
             if (!discardRecordingRef.current && recordingChunksRef.current.length) {
               const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "video/webm" });
               setReplayUrl(URL.createObjectURL(blob));
-              setHint("Revois ta danse et découvre ton score !");
+              setHint("Revois ta danse avec la musique et découvre ton score !");
             }
             recordingChunksRef.current = [];
             recorderRef.current = null;
@@ -342,7 +355,6 @@ function App() {
           recorder.start(250);
         } catch (recordError) { recorderRef.current = null; }
       }
-      await playTrackSegment(chosen,false);
       let left=ROUND_SECONDS;
       timerRef.current=setInterval(()=>{
         left--;setTimeLeft(left);
@@ -362,7 +374,7 @@ function App() {
   function handleReplayProgress(event) {
     const current = event.currentTarget.currentTime;
     const partial = samplesRef.current.filter(sample => sample.time <= current);
-    if (partial.length >= 12) setScore(scoreDance(partial));
+    setScore(scoreDance(partial));
   }
   function finishReplay() {
     setScore(scoreDance(samplesRef.current));
@@ -385,7 +397,7 @@ function App() {
       <div className="stats-row"><div><Music2/><b>ALÉATOIRE</b><small>Musique surprise</small></div><div><Camera/><b>CAMÉRA</b><small>Analyse en direct</small></div><div><Trophy/><b>/100</b><small>Score final</small></div></div>
     </section>
     <section className="game-layout"><div className="play-panel"><div className="panel-head"><span className="panel-label">ZONE DE JEU</span><span className={`phase-tag ${phase}`}>{phase==="home"?"EN ATTENTE":phase==="preview"?"ÉCOUTE":phase==="dance"?"EN DANSE":"RÉSULTAT"}</span></div>
-      <div className="stage"><div className="camera-frame"><video ref={videoRef} autoPlay muted playsInline className={cameraOn?"video visible":"video"}/>{phase==="result" && replayUrl && <video ref={replayVideoRef} src={replayUrl} autoPlay muted playsInline className="replay-video" onTimeUpdate={handleReplayProgress} onEnded={finishReplay} onError={finishReplay}/>}<canvas ref={canvasRef} className="pose-canvas"/>
+      <div className="stage"><div className="camera-frame"><video ref={videoRef} autoPlay muted playsInline className={cameraOn?"video visible":"video"}/>{phase==="result" && replayUrl && <video ref={replayVideoRef} src={replayUrl} autoPlay playsInline className="replay-video" onTimeUpdate={handleReplayProgress} onEnded={finishReplay} onError={finishReplay}/>}<canvas ref={canvasRef} className="pose-canvas"/>
         {cameraOn&&!framingOk&&phase!=="result"&&<div className="framing-overlay">⚠️ {framingMessage}</div>}
         {!cameraOn&&<div className="camera-placeholder"><div className="camera-icon"><CameraOff size={32}/></div><b>CAMÉRA EN VEILLE</b><span>Active-la pour analyser tes mouvements</span></div>}
         {phase==="dance"&&<div className="countdown"><span>{timeLeft}</span><small>SECONDES</small></div>}
