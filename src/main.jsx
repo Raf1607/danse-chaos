@@ -77,17 +77,19 @@ function scoreDance(samples) {
 }
 
 function App() {
-  const videoRef = useRef(null), canvasRef = useRef(null), landmarkerRef = useRef(null);
+  const videoRef = useRef(null), replayVideoRef = useRef(null), canvasRef = useRef(null), landmarkerRef = useRef(null);
   const streamRef = useRef(null), rafRef = useRef(null), samplesRef = useRef([]);
-  const audioRef = useRef(null), synthRef = useRef(null), timerRef = useRef(null), lastPoseRef = useRef(null), lastSampleAtRef = useRef(0);
+  const audioRef = useRef(null), synthRef = useRef(null), timerRef = useRef(null), lastPoseRef = useRef(null), lastSampleAtRef = useRef(0), recorderRef = useRef(null), recordingChunksRef = useRef([]), discardRecordingRef = useRef(false);
   const [cameraOn, setCameraOn] = useState(false), [loadingCamera, setLoadingCamera] = useState(false);
   const [jamendoTracks, setJamendoTracks] = useState([]), [loadingJamendo, setLoadingJamendo] = useState(false);
   const [phase, setPhase] = useState("home"), [tracks, setTracks] = useState([]);
   const [track, setTrack] = useState(null), [timeLeft, setTimeLeft] = useState(ROUND_SECONDS);
-  const [score, setScore] = useState(null), [error, setError] = useState("");
+  const [score, setScore] = useState(null), [replayUrl, setReplayUrl] = useState(null), [error, setError] = useState("");
   const [volume, setVolume] = useState(0.7), [hint, setHint] = useState("Prêt à mettre le feu ?");
 
   function stopCamera() {
+    discardRecordingRef.current = true;
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     if (landmarkerRef.current) { landmarkerRef.current.close(); landmarkerRef.current = null; }
@@ -274,6 +276,8 @@ function App() {
   }
   async function startGame() {
     setError("");setScore(null);
+    if (replayUrl) { URL.revokeObjectURL(replayUrl); setReplayUrl(null); }
+    discardRecordingRef.current = false;
     if(!cameraOn){setError("Active la caméra avant de lancer une partie.");return;}
     const chosen=pickRandomTrack();setTrack(chosen);setPhase("preview");setHint("Écoute bien… tu as 5 secondes !");
     try {
@@ -281,18 +285,55 @@ function App() {
       if(audioRef.current)audioRef.current.pause();
       if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{}synthRef.current=null;}
       setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;lastSampleAtRef.current=0;window.__danceStartTime=performance.now();setHint("C'EST PARTI ! DANSE !");
+      recordingChunksRef.current = [];
+      if (streamRef.current && window.MediaRecorder) {
+        try {
+          const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
+          const recorder = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
+          recorder.ondataavailable = event => { if (event.data?.size) recordingChunksRef.current.push(event.data); };
+          recorder.onstop = () => {
+            if (!discardRecordingRef.current && recordingChunksRef.current.length) {
+              const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "video/webm" });
+              setReplayUrl(URL.createObjectURL(blob));
+              setHint("Revois ta danse et découvre ton score !");
+            }
+            recordingChunksRef.current = [];
+            recorderRef.current = null;
+          };
+          recorderRef.current = recorder;
+          recorder.start(250);
+        } catch (recordError) { recorderRef.current = null; }
+      }
       await playTrackSegment(chosen,false);
       let left=ROUND_SECONDS;
       timerRef.current=setInterval(()=>{
         left--;setTimeLeft(left);
         if(left<=0){clearInterval(timerRef.current);if(audioRef.current)audioRef.current.pause();
+          if(recorderRef.current?.state === "recording") recorderRef.current.stop();
           if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{}synthRef.current=null;}
           setScore(scoreDance(samplesRef.current));setPhase("result");setHint("Résultat de ta performance !");
         }
       },1000);
     } catch {setError("La lecture audio a échoué. Essaie un autre fichier.");setPhase("home");}
   }
+  function clearReplay() {
+    if (replayUrl) URL.revokeObjectURL(replayUrl);
+    setReplayUrl(null);
+    if (replayVideoRef.current) replayVideoRef.current.pause();
+  }
+  function handleReplayProgress(event) {
+    const current = event.currentTarget.currentTime;
+    const partial = samplesRef.current.filter(sample => sample.time <= current);
+    if (partial.length >= 12) setScore(scoreDance(partial));
+  }
+  function finishReplay() {
+    clearReplay();
+    setHint("Vidéo supprimée. Ton score final reste affiché !");
+  }
   function resetGame() {
+    discardRecordingRef.current = true;
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    clearReplay();
     clearInterval(timerRef.current);if(audioRef.current)audioRef.current.pause();
     if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{}synthRef.current=null;}
     setPhase("home");setScore(null);setTimeLeft(ROUND_SECONDS);setHint("Prêt à mettre le feu ?");
@@ -301,14 +342,14 @@ function App() {
 
   return <main className="app-shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">⚡</span>DANCE <b>CHAOS</b></a><div className="top-pill"><span className="live-dot"></span> PARTY MODE</div></header>
-    <section className="hero"><div className="eyebrow"><Sparkles size={14}/> LE JEU OÙ TOUT PEUT ARRIVER</div><h1>SHOW US<br/><span>YOUR MOVES.</span></h1><p className="subtitle">Une musique surprise. 30 secondes. Zéro jugement. Enfin… presque.</p>
+    <section className="hero"><div className="eyebrow"><Sparkles size={14}/> LE JEU OÙ TOUT PEUT ARRIVER</div><h1>SHOW US<br/><span>YOUR MOVES.</span></h1><p className="subtitle">Une musique surprise. 15 secondes. Zéro jugement. Enfin… presque.</p>
       <div className="stats-row"><div><Music2/><b>ALÉATOIRE</b><small>Musique surprise</small></div><div><Camera/><b>CAMÉRA</b><small>Analyse en direct</small></div><div><Trophy/><b>/100</b><small>Score final</small></div></div>
     </section>
     <section className="game-layout"><div className="play-panel"><div className="panel-head"><span className="panel-label">ZONE DE JEU</span><span className={`phase-tag ${phase}`}>{phase==="home"?"EN ATTENTE":phase==="preview"?"ÉCOUTE":phase==="dance"?"EN DANSE":"RÉSULTAT"}</span></div>
-      <div className="stage"><div className="camera-frame"><video ref={videoRef} autoPlay muted playsInline className={cameraOn?"video visible":"video"}/><canvas ref={canvasRef} className="pose-canvas"/>
+      <div className="stage"><div className="camera-frame"><video ref={videoRef} autoPlay muted playsInline className={cameraOn?"video visible":"video"}/>{phase==="result" && replayUrl && <video ref={replayVideoRef} src={replayUrl} autoPlay muted playsInline className="replay-video" onTimeUpdate={handleReplayProgress} onEnded={finishReplay} onError={finishReplay}/>}<canvas ref={canvasRef} className="pose-canvas"/>
         {!cameraOn&&<div className="camera-placeholder"><div className="camera-icon"><CameraOff size={32}/></div><b>CAMÉRA EN VEILLE</b><span>Active-la pour analyser tes mouvements</span></div>}
         {phase==="dance"&&<div className="countdown"><span>{timeLeft}</span><small>SECONDES</small></div>}
-        {phase==="preview"&&<div className="preview-overlay"><span className="sound-wave">♫</span><b>ÉCOUTE LA MUSIQUE</b><small>5 SECONDES POUR DEVINER</small></div>}
+        {phase==="result"&&replayUrl&&<div className="replay-badge">🎬 REPLAY DE TA DANSE · SCORE EN DIRECT</div>}{phase==="preview"&&<div className="preview-overlay"><span className="sound-wave">♫</span><b>ÉCOUTE LA MUSIQUE</b><small>5 SECONDES POUR DEVINER</small></div>}
       </div><div className="stage-caption"><span className="equalizer"><i/><i/><i/><i/><i/></span>{hint}</div></div>
       <div className="controls">{!cameraOn?<button className="secondary-btn" onClick={enableCamera} disabled={loadingCamera}>{loadingCamera?"CHARGEMENT…":<><Camera size={17}/> ACTIVER LA CAMÉRA</>}</button>:<button className="secondary-btn stop-btn" onClick={stopCamera}><CameraOff size={17}/> ARRÊTER LA CAMÉRA</button>}
         {phase==="home"||phase==="result"?<button className="primary-btn" onClick={startGame}><Play size={18} fill="currentColor"/> {phase==="result"?"REJOUER":"LANCER LE CHAOS"}</button>:<button className="primary-btn" disabled><Zap size={18}/> {phase==="preview"?"ÉCOUTE…":"EN PLEINE DANSE"}</button>}</div>
@@ -322,7 +363,7 @@ function App() {
       {track?.type==="JAMENDO"&&<div className="track-credit">🎵 {track.artist}<br/><a href={track.url} target="_blank" rel="noreferrer">Écouter / voir la licence de ce titre ↗</a></div>}</div>
       <div className="side-card criteria-card"><div className="panel-label">COMMENT TU SERAS NOTÉ</div>{CRITERIA.map(c=><div className="criterion" key={c.key}><div className="criterion-top"><span>{c.icon} {c.label}</span><b>{c.max} PTS</b></div><div className="bar"><i style={{width:`${c.max/25*100}%`}}/></div></div>)}</div>
       {score&&<div className="result-card"><div className="result-head"><Trophy size={19}/> TON SCORE</div><div className="big-score">{score.total}<small>/100</small></div><b className="result-message">{score.message}</b>
-        {CRITERIA.map(c=><div className="score-line" key={c.key}><span>{c.label}</span><b>{score.parts[c.key]} / {c.max}</b></div>)}<button className="replay-btn" onClick={resetGame}><RotateCcw size={15}/> RETOUR AU MENU</button></div>}
+        {CRITERIA.map(c=><div className="score-line" key={c.key}><span>{c.label}</span><b>{score.parts[c.key]} / {c.max}</b></div>)}<div className="score-animation-note">{replayUrl ? "Le score évolue pendant le replay. La vidéo sera supprimée à la fin." : "Score final de ta partie de 15 secondes."}</div><button className="replay-btn" onClick={resetGame}><RotateCcw size={15}/> REJOUER</button></div>}
     </aside></section>
     <footer><span>⚡ DANCE CHAOS</span><span>La caméra reste sur ton appareil. Rien n'est enregistré.</span></footer>
   </main>;
