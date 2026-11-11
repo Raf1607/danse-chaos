@@ -148,3 +148,27 @@ footer{display:flex;justify-content:space-between;padding:28px 2px;color:#71677e
   85%{transform:rotate(-28deg)}
   100%{transform:rotate(0)}
 }
+
+
+/* Mascotte de référence : style blanc/noir avec sneakers et halo néon */
+.memory-overlay{background:radial-gradient(ellipse at 50% 55%,#32145c 0%,#11091f 75%)}
+.trend-mascot{width:min(250px,62vw);height:310px;overflow:visible;filter:drop-shadow(0 0 5px #fff) drop-shadow(0 0 13px #a43cff)}
+.mascot-body{transform-origin:120px 170px;animation:trend-body-real 15s ease-in-out 1 both}
+.mascot-head{fill:#fff;stroke:#11101a;stroke-width:7}
+.mascot-eye,.mascot-smile{fill:none;stroke:#11101a;stroke-width:5;stroke-linecap:round}
+.mascot-neck{stroke:#fff;stroke-width:12;stroke-linecap:round;filter:drop-shadow(0 0 2px #111)}
+.mascot-torso{fill:#fff;stroke:#11101a;stroke-width:7;stroke-linejoin:round}
+.mascot-arm,.mascot-leg{fill:none;stroke:#11101a;stroke-width:21;stroke-linecap:round;stroke-linejoin:round}
+.mascot-arm path,.mascot-leg path{stroke:#fff;stroke-width:15;stroke-linecap:round;stroke-linejoin:round}
+.mascot-arm-l{transform-origin:108px 101px;animation:trend-arm-left-real 15s ease-in-out 1 both}
+.mascot-arm-r{transform-origin:132px 101px;animation:trend-arm-right-real 15s ease-in-out 1 both}
+.mascot-leg-l{transform-origin:111px 171px;animation:trend-leg-left-real 15s ease-in-out 1 both}
+.mascot-leg-r{transform-origin:129px 171px;animation:trend-leg-right-real 15s ease-in-out 1 both}
+.mascot-shoe{fill:#fff;stroke:#11101a;stroke-width:7;stroke-linejoin:round;filter:drop-shadow(0 0 4px #fff)}
+.mascot-shoe path:last-child{fill:none;stroke:#11101a;stroke-width:3}
+@keyframes trend-body-real{0%,8%{transform:translateY(0) rotate(0)}16%{transform:translateY(1px) rotate(-5deg)}24%{transform:translateY(-2px) rotate(5deg)}33%{transform:translateY(2px) rotate(-8deg)}42%{transform:translateY(0) rotate(7deg)}52%{transform:translateY(3px) rotate(-5deg)}62%{transform:translateY(0) rotate(7deg)}72%{transform:translateY(5px) rotate(-10deg)}82%{transform:translateY(11px) rotate(5deg)}92%,100%{transform:translateY(0) rotate(0)}}
+@keyframes trend-arm-left-real{0%,8%{transform:rotate(0)}16%{transform:rotate(45deg)}24%{transform:rotate(-45deg)}33%{transform:rotate(72deg)}42%{transform:rotate(-65deg)}52%{transform:rotate(25deg)}62%{transform:rotate(-20deg)}72%{transform:rotate(58deg)}82%{transform:rotate(-15deg)}92%,100%{transform:rotate(0)}}
+@keyframes trend-arm-right-real{0%,8%{transform:rotate(0)}16%{transform:rotate(-35deg)}24%{transform:rotate(55deg)}33%{transform:rotate(-65deg)}42%{transform:rotate(70deg)}52%{transform:rotate(-30deg)}62%{transform:rotate(25deg)}72%{transform:rotate(-55deg)}82%{transform:rotate(20deg)}92%,100%{transform:rotate(0)}}
+@keyframes trend-leg-left-real{0%,8%{transform:rotate(0)}16%{transform:rotate(-8deg)}24%{transform:rotate(13deg)}33%{transform:rotate(-18deg)}42%{transform:rotate(17deg)}52%{transform:rotate(-12deg)}62%{transform:rotate(15deg)}72%{transform:rotate(-22deg)}82%{transform:rotate(26deg)}92%,100%{transform:rotate(0)}}
+@keyframes trend-leg-right-real{0%,8%{transform:rotate(0)}16%{transform:rotate(12deg)}24%{transform:rotate(-12deg)}33%{transform:rotate(18deg)}42%{transform:rotate(-16deg)}52%{transform:rotate(14deg)}62%{transform:rotate(-15deg)}72%{transform:rotate(24deg)}82%{transform:rotate(-22deg)}92%,100%{transform:rotate(0)}}
+.music-source-video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-10000px;top:-10000px}
