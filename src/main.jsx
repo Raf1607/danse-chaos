@@ -301,7 +301,7 @@ function App() {
     if(audioRef.current){audioRef.current.pause();audioRef.current=null;}
     if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{} synthRef.current=null;}
     if(selected.type==="UPLOAD" || selected.type==="JAMENDO"){
-      const audio=new Audio(selected.type==="JAMENDO"?selected.audio:selected.url); audio.volume=volume; audio.crossOrigin="anonymous"; audioRef.current=audio;
+      const audio=new Audio(); audio.crossOrigin="anonymous"; audio.src=selected.type==="JAMENDO"?selected.audio:selected.url; audio.volume=volume; audioRef.current=audio;
       await new Promise(resolve=>{audio.onloadedmetadata=resolve;audio.onerror=resolve;});
       const duration=audio.duration||40, maxStart=Math.max(0,duration-(preview?5:ROUND_SECONDS));
       audio.currentTime=Math.random()*maxStart; await audio.play();
@@ -415,10 +415,10 @@ function App() {
       <div className="library-count">{jamendoTracks.length} titres Jamendo · {tracks.length} musique{tracks.length>1?"s":""} personnelle{tracks.length>1?"s":""}</div>
       {track?.type==="JAMENDO"&&<div className="track-credit">🎵 {track.artist}<br/><a href={track.url} target="_blank" rel="noreferrer">Écouter / voir la licence de ce titre ↗</a></div>}</div>
       <div className="side-card criteria-card"><div className="panel-label">COMMENT TU SERAS NOTÉ</div>{CRITERIA.map(c=><div className="criterion" key={c.key}><div className="criterion-top"><span>{c.icon} {c.label}</span><b>{c.max} PTS</b></div><div className="bar"><i style={{width:`${c.max/25*100}%`}}/></div></div>)}</div>
-      {score&&<div className="result-card"><div className="result-head"><Trophy size={19}/> TON SCORE</div><div className="big-score">{score.total}<small>/100</small></div><b className="result-message">{score.message}</b>
+      {score&&<div className="result-card"><div className="result-head"><Trophy size={19}/> {replayUrl ? "TON SCORE EN DIRECT" : "TON SCORE FINAL"}</div><div className="big-score">{score.total}<small>/100</small></div><b className="result-message">{score.message}</b>
         {CRITERIA.map(c=><div className="score-line" key={c.key}><span>{c.label}</span><b>{score.parts[c.key]} / {c.max}</b></div>)}<div className="score-animation-note">{replayUrl ? "Le score évolue pendant le replay. La vidéo sera supprimée à la fin." : "Score final de ta partie de 15 secondes."}</div><button className="replay-btn" onClick={resetGame}><RotateCcw size={15}/> REJOUER</button></div>}
     </aside></section>
-    <footer><span>⚡ DANCE CHAOS</span><span>La caméra reste sur ton appareil. Rien n'est enregistré.</span></footer>
+    <footer><span>⚡ DANCE CHAOS</span><span>Replay temporaire enregistré localement sur ton appareil, puis supprimé après lecture.</span></footer>
   </main>;
 }
 createRoot(document.getElementById("root")).render(<App />);
