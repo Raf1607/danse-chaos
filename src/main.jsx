@@ -386,11 +386,12 @@ function App() {
   }
   function handleReplayProgress(event) {
     const current = event.currentTarget.currentTime;
-    const partial = samplesRef.current.filter(sample => sample.time <= current);
+    const sourceSamples = finalSamplesRef.current.length ? finalSamplesRef.current : samplesRef.current;
+    const partial = sourceSamples.filter(sample => sample.time <= current);
     setScore(scoreDance(partial));
   }
   function finishReplay() {
-    setScore(scoreDance(samplesRef.current));
+    setScore(finalScoreRef.current || scoreDance(finalSamplesRef.current.length ? finalSamplesRef.current : samplesRef.current));
     clearReplay();
     setHint("Vidéo supprimée. Ton score final reste affiché !");
   }
