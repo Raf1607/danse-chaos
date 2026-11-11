@@ -327,6 +327,7 @@ function App() {
     if (partial.length >= 12) setScore(scoreDance(partial));
   }
   function finishReplay() {
+    setScore(scoreDance(samplesRef.current));
     clearReplay();
     setHint("Vidéo supprimée. Ton score final reste affiché !");
   }
