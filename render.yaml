@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: dance-chaos-matchmaking
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
