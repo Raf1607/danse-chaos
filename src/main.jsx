@@ -190,10 +190,10 @@ function App() {
             if (lastPoseRef.current?.points) {
               movement = jointPoints.reduce((sum, point, i) => sum + Math.hypot(point[0]-lastPoseRef.current.points[i][0], point[1]-lastPoseRef.current.points[i][1]), 0) / jointPoints.length / bodyScale;
             }
-            lastPoseRef.current = {x:cx,y:cy,points:jointPoints};
             const now=performance.now();
             if(now-lastSampleAtRef.current>=100){
               samplesRef.current.push({activity:Math.min(1,movement*2.8+spread*.22+Math.abs(left-right)*.12),left,right,time:(now-(window.__danceStartTime||now))/1000});
+              lastPoseRef.current = {x:cx,y:cy,points:jointPoints};
               lastSampleAtRef.current=now;
             }
             if (canvasRef.current) {
