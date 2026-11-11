@@ -169,7 +169,7 @@ function App() {
       smoothLandmarksRef.current = null;
       setCameraOn(true);
       setFramingOk(false);
-      setHint("Place ta tête, tes épaules et ton buste dans le cadre.");
+      setHint("Place ton visage et ton buste dans le cadre.");
       startPoseLoop();
     } catch (e) {
       if (landmarkerRef.current) { landmarkerRef.current.close(); landmarkerRef.current = null; }
@@ -207,11 +207,10 @@ function App() {
             });
             smoothLandmarksRef.current = lm;
             const headVisible = (lm[0]?.visibility || 0) > 0.5;
-            const shouldersVisible = (lm[11]?.visibility || 0) > 0.5 && (lm[12]?.visibility || 0) > 0.5;
             const torsoVisible = (lm[23]?.visibility || 0) > 0.35 && (lm[24]?.visibility || 0) > 0.35;
-            const validFrame = headVisible && shouldersVisible && torsoVisible;
+            const validFrame = headVisible && torsoVisible;
             setFramingOk(previous => previous === validFrame ? previous : validFrame);
-            setFramingMessage(validFrame ? "Cadrage validé : tête et haut du corps détectés." : "Recule ou ajuste la caméra : tête, épaules et buste doivent être visibles.");
+            setFramingMessage(validFrame ? "Cadrage validé : tête et buste détectés." : "Ajuste la caméra : ton visage et ton buste doivent être visibles.");
             if (!validFrame) {
               lastPoseRef.current = null;
               smoothLandmarksRef.current = null;
@@ -246,7 +245,7 @@ function App() {
             }
           } else {
             setFramingOk(false);
-            setFramingMessage("Je ne détecte pas ton corps. Replace-toi face à la caméra.");
+            setFramingMessage("Je ne détecte pas ton visage et ton buste. Replace-toi face à la caméra.");
             lastPoseRef.current = null;
             smoothLandmarksRef.current = null;
           }
@@ -325,7 +324,7 @@ function App() {
     if (replayUrl) { URL.revokeObjectURL(replayUrl); setReplayUrl(null); }
     discardRecordingRef.current = false;
     if(!cameraOn){setError("Active la caméra avant de lancer une partie.");return;}
-    if(!framingOk){setError("Impossible de démarrer : place ta tête, tes épaules et ton buste dans le cadre.");return;}
+    if(!framingOk){setError("Impossible de démarrer : place ton visage et ton buste dans le cadre.");return;}
     const chosen=battleTrack || pickRandomTrack();battleRef.current=Boolean(battleStartAt);battleSubmittedRef.current=false;finalScoreRef.current=null;finalSamplesRef.current=[];setTrack(chosen);setPhase("preview");setHint(battleStartAt ? "Battle entre amis : prépare-toi !" : "Écoute bien… tu as 5 secondes !");
     try {
       if(battleStartAt) await new Promise(resolve=>setTimeout(resolve,Math.max(0,battleStartAt-Date.now()))); else await playTrackSegment(chosen,true);
