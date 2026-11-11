@@ -14,8 +14,8 @@ const CRITERIA = [
   { key: "coordination", label: "Coordination", max: 15, icon: "🕺" }
 ];
 
-function makeSynthTrack(kind, seed) {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+function makeSynthTrack(kind, seed, existingContext = null) {
+  const ctx = existingContext || new (window.AudioContext || window.webkitAudioContext)();
   const duration = 48;
   const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -302,7 +302,7 @@ function App() {
   }
   async function playTrackSegment(selected, preview=false) {
     if(audioRef.current){audioRef.current.pause();audioRef.current=null;}
-    if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{} synthRef.current=null;}
+    if(synthRef.current){try{synthRef.current.source.stop();if(synthRef.current.ownsContext)synthRef.current.ctx.close();}catch{} synthRef.current=null;}
     if(selected.type==="UPLOAD" || selected.type==="JAMENDO"){
       const audio=new Audio(); audio.crossOrigin="anonymous"; audio.src=selected.type==="JAMENDO"?selected.audio:selected.url; audio.volume=volume; audioRef.current=audio;
       await new Promise(resolve=>{audio.onloadedmetadata=resolve;audio.onerror=resolve;});
@@ -323,9 +323,9 @@ function App() {
     discardRecordingRef.current = false;
     if(!cameraOn){setError("Active la caméra avant de lancer une partie.");return;}
     if(!framingOk){setError("Impossible de démarrer : place ta tête, tes épaules et ton buste dans le cadre.");return;}
-    const chosen=pickRandomTrack();setTrack(chosen);setPhase("preview");setHint("Écoute bien… tu as 5 secondes !");
+    const chosen=battleTrack || pickRandomTrack();battleRef.current=Boolean(battleStartAt);battleSubmittedRef.current=false;finalScoreRef.current=null;setTrack(chosen);setPhase("preview");setHint(battleStartAt ? "Battle entre amis : prépare-toi !" : "Écoute bien… tu as 5 secondes !");
     try {
-      await playTrackSegment(chosen,true);
+      if(battleStartAt) await new Promise(resolve=>setTimeout(resolve,Math.max(0,battleStartAt-Date.now()))); else await playTrackSegment(chosen,true);
       if(audioRef.current)audioRef.current.pause();
       if(synthRef.current){try{synthRef.current.source.stop();if(synthRef.current.ownsContext)synthRef.current.ctx.close();}catch{}synthRef.current=null;}
       setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;lastSampleAtRef.current=0;window.__danceStartTime=performance.now();setHint("C'EST PARTI ! DANSE !");
@@ -346,13 +346,15 @@ function App() {
           const recorder = new MediaRecorder(combinedStream, mimeType ? { mimeType } : undefined);
           recorder.ondataavailable = event => { if (event.data?.size) recordingChunksRef.current.push(event.data); };
           recorder.onstop = () => {
+            let blob = null;
             if (!discardRecordingRef.current && recordingChunksRef.current.length) {
-              const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "video/webm" });
+              blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "video/webm" });
               setReplayUrl(URL.createObjectURL(blob));
               setHint("Revois ta danse avec la musique et découvre ton score !");
             }
             recordingChunksRef.current = [];
             recorderRef.current = null;
+            if (battleRef.current) submitBattleResult(blob);
           };
           recorderRef.current = recorder;
           recorder.start(250);
