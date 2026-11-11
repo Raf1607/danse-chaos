@@ -13,3 +13,10 @@ footer{display:flex;justify-content:space-between;padding:28px 2px;color:#71677e
 @media(max-width:520px){.hero{padding:35px 0 25px}.hero h1{font-size:51px}.subtitle{font-size:12px;padding:0 12px}.stats-row{gap:12px}.stats-row div{grid-template-columns:18px auto;column-gap:5px}.stats-row svg{width:15px}.stats-row b{font-size:8px}.stats-row small{font-size:8px}.play-panel{padding:12px}.camera-frame{height:250px}.stage{min-height:250px}.controls{flex-direction:column}.side-panel{grid-template-columns:1fr}footer{gap:10px;flex-direction:column}.topbar{height:62px}}
 
 .jamendo-btn{width:100%;border:1px solid #a56bff80;border-radius:9px;min-height:42px;padding:0 12px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(100deg,#512b83,#342052);color:#f0dcff;font-size:10px;font-weight:700;letter-spacing:.5px;cursor:pointer;margin:12px 0 8px}.jamendo-btn:hover{filter:brightness(1.2)}.jamendo-btn:disabled{opacity:.6;cursor:wait}.track-credit{font-size:10px;line-height:1.7;color:#cfc0e4;margin-top:12px;overflow-wrap:anywhere}.track-credit a{color:#d7aaff}
+
+/* Replay vidéo + révélation progressive du score */
+.replay-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);z-index:2;background:#090713}
+.replay-badge{position:absolute;z-index:5;top:14px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:9px 13px;border:1px solid #d5a7ff88;border-radius:30px;background:#160d26dd;color:#efdfff;font:10px 'DM Mono',monospace;letter-spacing:.6px;box-shadow:0 4px 20px #0006}
+.score-animation-note{margin-top:12px;color:#a99ab9;font-size:10px;line-height:1.5;text-align:center}
+.result-card .big-score{animation:scorePop .45s ease-out}
+@keyframes scorePop{0%{transform:scale(.75);opacity:.35}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
