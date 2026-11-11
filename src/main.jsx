@@ -330,7 +330,7 @@ function App() {
     synth.gain.gain.value=volume;
     const maxStart=synth.duration-ROUND_SECONDS, offset=selected.fixedOffset ?? Math.random()*Math.max(0,maxStart); selected.fixedOffset=offset;
     synth.source.start(0,offset);
-    if(preview)await new Promise(resolve=>setTimeout(resolve,5000));
+    if(preview)await new Promise(resolve=>setTimeout(resolve,ROUND_SECONDS*1000));
   }
   async function startGame(battleTrack = null, battleStartAt = null) {
     setError("");setScore(null);
@@ -338,10 +338,11 @@ function App() {
     discardRecordingRef.current = false;
     if(!cameraOn){setError("Active la caméra avant de lancer une partie.");return;}
 
-    const chosen=battleTrack || pickRandomTrack();battleRef.current=Boolean(battleStartAt);battleSubmittedRef.current=false;finalScoreRef.current=null;finalSamplesRef.current=[];setTrack(chosen);setPhase("memorize");setHint("MÉMORISE LA CHORÉGRAPHIE !");
+    const chosen=battleTrack || pickRandomTrack();battleRef.current=Boolean(battleStartAt);battleSubmittedRef.current=false;finalScoreRef.current=null;finalSamplesRef.current=[];setTrack(chosen);setPhase("memorize");setTimeLeft(ROUND_SECONDS);setHint("MÉMORISE LA CHORÉGRAPHIE !");
     try {
       if(battleStartAt) await new Promise(resolve=>setTimeout(resolve,Math.max(0,battleStartAt-Date.now())));
-      await playTrackSegment(chosen,true);
+      let memoryLeft=ROUND_SECONDS;timerRef.current=setInterval(()=>{memoryLeft--;setTimeLeft(memoryLeft);if(memoryLeft<=0)clearInterval(timerRef.current);},1000);
+      await playTrackSegment(chosen,true);clearInterval(timerRef.current);
       if(audioRef.current)audioRef.current.pause();
       if(synthRef.current){try{synthRef.current.source.stop();if(synthRef.current.ownsContext)synthRef.current.ctx.close();}catch{}synthRef.current=null;}
       setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;lastSampleAtRef.current=0;window.__danceStartTime=performance.now();setHint("À TOI ! REPRODUIS LA DANSE DE MÉMOIRE !");
