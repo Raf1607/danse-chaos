@@ -29,3 +29,11 @@ footer{display:flex;justify-content:space-between;padding:28px 2px;color:#71677e
 /* Keep the live score directly beside the replay, above secondary panels. */
 .side-panel .result-card{order:-1;position:sticky;top:14px}
 @media(max-width:800px){.side-panel .result-card{position:static;order:-1}}
+
+/* Replay: the score is physically next to the video, not in the sidebar. */
+.replay-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,280px);gap:14px;align-items:start}
+.replay-layout .stage{min-width:0}
+.replay-layout .result-card{position:static;order:0;min-width:0}
+.replay-layout .result-card .big-score{font-size:54px}
+.replay-video{background:#090713}
+@media(max-width:800px){.replay-layout{grid-template-columns:1fr}.replay-layout .result-card{position:static}}
