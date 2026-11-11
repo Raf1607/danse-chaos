@@ -44,3 +44,27 @@ footer{display:flex;justify-content:space-between;padding:28px 2px;color:#71677e
 .room-name-input{width:100%;background:#0d0918;border:1px solid #ffffff2b;border-radius:8px;color:#fff;padding:10px;font:11px 'DM Mono',monospace}.room-privacy{font-size:9px;line-height:1.4;color:#9589a8}
 
 .random-mode-btn{width:100%;min-height:42px;border:1px solid #b77cff88;border-radius:9px;background:linear-gradient(100deg,#7b35bd,#4e2393);color:#fff;font-size:11px;font-weight:800;letter-spacing:.5px;cursor:pointer;box-shadow:0 0 18px #8d42d522}.random-mode-btn:hover{filter:brightness(1.13)}.random-mode-btn:disabled{opacity:.55;cursor:wait}
+
+
+.memory-overlay{position:absolute;inset:0;z-index:4;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 55%,#4a2478dd,#10091eeF);backdrop-filter:blur(2px)}
+.memory-dancer{display:flex;flex-direction:column;align-items:center;gap:13px;color:#fff;text-align:center}
+.memory-dancer b{font-size:13px;letter-spacing:1.4px;color:#f2ddff;text-shadow:0 0 16px #b75cff}
+.memory-dancer small{font-size:10px;color:#d7c5ee}
+.memory-stickman{position:relative;width:150px;height:190px;filter:drop-shadow(0 0 12px #b75cff);animation:stick-bounce .72s ease-in-out infinite alternate}
+.memory-stickman i{position:absolute;display:block;background:#fff;border-radius:10px;box-shadow:0 0 8px #d8a6ff,0 0 18px #9b4dff}
+.stick-head{width:42px;height:42px;border:4px solid #fff;background:#171027!important;border-radius:50%!important;left:54px;top:4px}
+.stick-body{width:9px;height:75px;left:71px;top:48px;transform:rotate(5deg);transform-origin:top}
+.stick-arm{width:8px;height:62px;top:55px;transform-origin:top}
+.stick-arm.left{left:69px;transform:rotate(55deg);animation:arm-left .95s ease-in-out infinite alternate}
+.stick-arm.right{left:75px;transform:rotate(-65deg);animation:arm-right .95s ease-in-out infinite alternate}
+.stick-leg{width:9px;height:68px;top:115px;transform-origin:top}
+.stick-leg.left{left:70px;transform:rotate(24deg);animation:leg-left .95s ease-in-out infinite alternate}
+.stick-leg.right{left:76px;transform:rotate(-25deg);animation:leg-right .95s ease-in-out infinite alternate}
+.stick-shoe{width:31px;height:10px;top:177px}
+.stick-shoe.left{left:86px;transform:rotate(-8deg)}
+.stick-shoe.right{left:38px;transform:rotate(8deg)}
+@keyframes stick-bounce{to{transform:translateY(-8px) rotate(2deg)}}
+@keyframes arm-left{to{transform:rotate(-35deg)}}
+@keyframes arm-right{to{transform:rotate(30deg)}}
+@keyframes leg-left{to{transform:rotate(-22deg)}}
+@keyframes leg-right{to{transform:rotate(35deg)}}
