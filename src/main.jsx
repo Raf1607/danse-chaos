@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import Peer from "peerjs";
 import { createRoot } from "react-dom/client";
 import { Camera, CameraOff, Music2, Play, Upload, Trophy, RotateCcw, Volume2, Sparkles, Zap } from "lucide-react";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
@@ -40,7 +41,7 @@ function makeSynthTrack(kind, seed) {
   source.connect(gain);
   gain.connect(ctx.destination);
   gain.connect(recordDestination);
-  return { ctx, source, duration, gain, audioStream: recordDestination.stream };
+  return { ctx, source, duration, gain, audioStream: recordDestination.stream, ownsContext: !existingContext };
 }
 
 function scoreDance(samples) {
@@ -95,6 +96,8 @@ function App() {
   const [track, setTrack] = useState(null), [timeLeft, setTimeLeft] = useState(ROUND_SECONDS);
   const [score, setScore] = useState(null), [replayUrl, setReplayUrl] = useState(null), [error, setError] = useState("");
   const [volume, setVolume] = useState(0.7), [hint, setHint] = useState("Prêt à mettre le feu ?");
+  const [roomCode,setRoomCode]=useState(""),[joinCode,setJoinCode]=useState(""),[roomStatus,setRoomStatus]=useState(""),[roomPlayers,setRoomPlayers]=useState([]),[isRoomHost,setIsRoomHost]=useState(false),[battleResults,setBattleResults]=useState([]);
+  const peerRef=useRef(null),connectionsRef=useRef([]),roomPlayersRef=useRef([]),roomResultsRef=useRef([]),battleRef=useRef(false),battleSubmittedRef=useRef(false),finalScoreRef=useRef(null),audioContextRef=useRef(null);
 
   function stopCamera() {
     discardRecordingRef.current = true;
@@ -308,13 +311,13 @@ function App() {
       if(preview)await new Promise(resolve=>setTimeout(resolve,5000));
       return;
     }
-    const synth=makeSynthTrack(selected.type,selected.seed); synthRef.current=synth;
+    const synth=makeSynthTrack(selected.type,selected.seed,audioContextRef.current); synthRef.current=synth;
     synth.gain.gain.value=volume;
-    const maxStart=synth.duration-ROUND_SECONDS-(preview?5:0), offset=Math.random()*Math.max(0,maxStart);
+    const maxStart=synth.duration-ROUND_SECONDS-(preview?5:0), offset=selected.fixedOffset ?? Math.random()*Math.max(0,maxStart);
     synth.source.start(0,offset);
     if(preview)await new Promise(resolve=>setTimeout(resolve,5000));
   }
-  async function startGame() {
+  async function startGame(battleTrack = null, battleStartAt = null) {
     setError("");setScore(null);
     if (replayUrl) { URL.revokeObjectURL(replayUrl); setReplayUrl(null); }
     discardRecordingRef.current = false;
@@ -324,7 +327,7 @@ function App() {
     try {
       await playTrackSegment(chosen,true);
       if(audioRef.current)audioRef.current.pause();
-      if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{}synthRef.current=null;}
+      if(synthRef.current){try{synthRef.current.source.stop();if(synthRef.current.ownsContext)synthRef.current.ctx.close();}catch{}synthRef.current=null;}
       setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;lastSampleAtRef.current=0;window.__danceStartTime=performance.now();setHint("C'EST PARTI ! DANSE !");
       await playTrackSegment(chosen,false);
       // Capture la vidéo et la musique ensemble pour un replay synchronisé.
@@ -361,11 +364,19 @@ function App() {
         if(left<=0){clearInterval(timerRef.current);if(audioRef.current)audioRef.current.pause();
           if(recorderRef.current?.state === "recording") recorderRef.current.stop();
           if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{}synthRef.current=null;}
-          setScore(scoreDance(samplesRef.current));setPhase("result");setHint("Résultat de ta performance !");
+          const finalScore=scoreDance(samplesRef.current);finalScoreRef.current=finalScore;setScore(finalScore);setPhase("result");setHint("Résultat de ta performance !");if(!recorderRef.current||recorderRef.current.state!=="recording")submitBattleResult(null);
         }
       },1000);
     } catch {setError("La lecture audio a échoué. Essaie un autre fichier.");setPhase("home");}
   }
+  async function unlockBattleAudio(){try{if(!audioContextRef.current||audioContextRef.current.state==="closed")audioContextRef.current=new (window.AudioContext||window.webkitAudioContext)();await audioContextRef.current.resume();}catch{}}
+  function closeRoom(){connectionsRef.current.forEach(c=>{try{c.close();}catch{}});connectionsRef.current=[];if(peerRef.current){try{peerRef.current.destroy();}catch{}peerRef.current=null;}roomPlayersRef.current=[];roomResultsRef.current=[];setRoomCode("");setRoomPlayers([]);setBattleResults([]);setRoomStatus("");setIsRoomHost(false);}
+  function presentResults(results){const sorted=[...results].sort((a,b)=>b.score.total-a.score.total).map(r=>({...r,videoUrl:r.videoData?URL.createObjectURL(new Blob([r.videoData],{type:"video/webm"})):null}));setBattleResults(sorted);setRoomStatus("Vainqueur : "+(sorted[0]?.name||"") +" — "+(sorted[0]?.score.total||0)+"/100");return sorted;}
+  function acceptBattleResult(result){roomResultsRef.current=[...roomResultsRef.current.filter(r=>r.id!==result.id),result];if(roomResultsRef.current.length>=roomPlayersRef.current.length){const sorted=presentResults(roomResultsRef.current);connectionsRef.current.forEach(c=>{if(c.open)c.send({type:"battle-results",results:roomResultsRef.current});});}}
+  async function submitBattleResult(blob){if(!battleRef.current||battleSubmittedRef.current)return;battleSubmittedRef.current=true;const scoreValue=finalScoreRef.current||scoreDance(samplesRef.current);let videoData=null;try{if(blob)videoData=await blob.arrayBuffer();}catch{}const result={id:peerRef.current?.id||("player-"+Date.now()),name:isRoomHost?"Hôte":"Joueur",score:scoreValue,videoData};if(isRoomHost)acceptBattleResult(result);else{const conn=connectionsRef.current[0];if(conn?.open)conn.send({type:"battle-result",result});} }
+  function createRoom(){closeRoom();const code=String(Math.floor(100000+Math.random()*900000));const peer=new Peer("dancechaos-"+code);peerRef.current=peer;setRoomStatus("Création du salon…");peer.on("open",()=>{roomPlayersRef.current=[{id:"host",name:"Hôte"}];setRoomPlayers(roomPlayersRef.current);setRoomCode(code);setIsRoomHost(true);setRoomStatus("Salon créé : partage le code à tes amis.");});peer.on("connection",conn=>{connectionsRef.current.push(conn);conn.on("open",()=>conn.send({type:"room-info",code}));conn.on("data",data=>{if(data?.type==="join"){roomPlayersRef.current=[...roomPlayersRef.current.filter(p=>p.id!==data.id),{id:data.id,name:data.name||"Joueur"}];setRoomPlayers(roomPlayersRef.current);connectionsRef.current.forEach(c=>{if(c.open)c.send({type:"players",players:roomPlayersRef.current});});}if(data?.type==="battle-result")acceptBattleResult(data.result);});});peer.on("error",e=>setRoomStatus("Erreur réseau : "+(e.type||"connexion")+". Réessaie."));}
+  async function joinRoom(){const code=joinCode.replace(/[^0-9]/g,"").slice(0,6);if(code.length!==6){setRoomStatus("Le code doit contenir 6 chiffres.");return;}await unlockBattleAudio();closeRoom();const peer=new Peer();peerRef.current=peer;setRoomStatus("Connexion au salon…");peer.on("open",id=>{const conn=peer.connect("dancechaos-"+code,{reliable:true});connectionsRef.current=[conn];conn.on("open",()=>{conn.send({type:"join",id,name:"Joueur"});setRoomCode(code);setIsRoomHost(false);setRoomStatus("Connecté au salon. Active ta caméra avant la battle.");});conn.on("data",data=>{if(data?.type==="room-info")setRoomPlayers([{id:"host",name:"Hôte"}]);if(data?.type==="players"){roomPlayersRef.current=data.players||[];setRoomPlayers(roomPlayersRef.current);}if(data?.type==="battle-start"){setRoomStatus("Battle lancée !");startGame({id:"room-track",name:"MUSIQUE COMMUNE",type:"ARCADE",seed:data.seed,fixedOffset:0},data.startAt);}if(data?.type==="battle-results"){roomResultsRef.current=data.results||[];presentResults(roomResultsRef.current);}});conn.on("error",()=>setRoomStatus("Impossible de rejoindre. Vérifie le code."));});peer.on("error",e=>setRoomStatus("Erreur de connexion : "+(e.type||"réseau")+".")); }
+  async function startRoomBattle(){if(!isRoomHost||roomPlayersRef.current.length<2){setRoomStatus("Invite au moins un ami avant de lancer la battle.");return;}if(!cameraOn||!framingOk){setRoomStatus("Active la caméra et vérifie le cadrage avant de lancer.");return;}await unlockBattleAudio();roomResultsRef.current=[];setBattleResults([]);const seed=Math.floor(Math.random()*999999),startAt=Date.now()+5000;connectionsRef.current.forEach(c=>{if(c.open)c.send({type:"battle-start",seed,startAt});});setRoomStatus("Même musique pour tous : la battle commence dans 5 secondes !");startGame({id:"room-track",name:"MUSIQUE COMMUNE",type:"ARCADE",seed,fixedOffset:0},startAt);}
   function clearReplay() {
     if (replayUrl) URL.revokeObjectURL(replayUrl);
     setReplayUrl(null);
@@ -410,7 +421,9 @@ function App() {
       {error&&<div className="error-msg">{error}</div>}
       <div className="volume-row"><Volume2 size={16}/><input aria-label="Volume" type="range" min="0" max="1" step=".05" value={volume} onChange={e=>setVolume(Number(e.target.value))}/><span>{Math.round(volume*100)}%</span></div>
     </div>
-    <aside className="side-panel"><div className="side-card"><div className="panel-label">BIBLIOTHÈQUE MUSICALE</div><div className="music-feature"><div className="music-art"><Music2 size={30}/><span>?</span></div><div><b>{track?track.name:"LA PROCHAINE SURPRISE"}</b><small>{track?(track.type==="UPLOAD"?"TON FICHIER":track.type==="JAMENDO"?"JAMENDO · "+track.artist:"PISTE ORIGINALE DU JEU"):"Morceaux indépendants + tes musiques"}</small></div></div>
+    <aside className="side-panel">      <div className="side-card room-card"><div className="panel-label">SALON & BATTLES ENTRE AMIS</div>{!roomCode?<><button className="jamendo-btn" onClick={createRoom}>CRÉER UN SALON</button><div className="room-join"><input value={joinCode} onChange={e=>setJoinCode(e.target.value.replace(/[^0-9]/g,"").slice(0,6))} placeholder="Code à 6 chiffres" maxLength={6}/><button onClick={joinRoom}>REJOINDRE</button></div></>:<><div className="room-code">CODE DU SALON : <b>{roomCode}</b></div><div className="room-players">{roomPlayers.map((p,i)=><span key={p.id||i}>🕺 {p.name||"Joueur"}</span>)}</div>{isRoomHost&&<button className="jamendo-btn" onClick={startRoomBattle}>LANCER LA BATTLE</button>}<button className="room-close" onClick={closeRoom}>QUITTER LE SALON</button></>}<div className="room-status">{roomStatus}</div></div>
+      {battleResults.length>0&&<div className="side-card battle-results"><div className="panel-label">🏆 CLASSEMENT DE LA BATTLE</div><div className="winner-banner">GAGNANT : {battleResults[0]?.name} · {battleResults[0]?.score.total}/100</div>{battleResults.map((r,i)=><div className="battle-result" key={r.id}><b>{i+1}. {r.name} — {r.score.total}/100</b>{r.videoUrl&&<video src={r.videoUrl} controls playsInline/>}</div>)}</div>}
+<div className="side-card"><div className="panel-label">BIBLIOTHÈQUE MUSICALE</div><div className="music-feature"><div className="music-art"><Music2 size={30}/><span>?</span></div><div><b>{track?track.name:"LA PROCHAINE SURPRISE"}</b><small>{track?(track.type==="UPLOAD"?"TON FICHIER":track.type==="JAMENDO"?"JAMENDO · "+track.artist:"PISTE ORIGINALE DU JEU"):"Morceaux indépendants + tes musiques"}</small></div></div>
       <button className="jamendo-btn" onClick={loadJamendoTracks} disabled={loadingJamendo}><Music2 size={16}/> {loadingJamendo?"CHARGEMENT JAMENDO…":"CHARGER DES VRAIES MUSIQUES"}</button>
       <label className="upload-btn"><Upload size={16}/> IMPORTER MES MUSIQUES<input type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a" multiple onChange={e=>addFiles(e.target.files)}/></label>
       <div className="library-count">{jamendoTracks.length} titres Jamendo · {tracks.length} musique{tracks.length>1?"s":""} personnelle{tracks.length>1?"s":""}</div>
