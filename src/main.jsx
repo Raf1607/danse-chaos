@@ -99,6 +99,8 @@ function App() {
   const [volume, setVolume] = useState(0.7), [hint, setHint] = useState("Prêt à mettre le feu ?");
   const [roomCode,setRoomCode]=useState(""),[joinCode,setJoinCode]=useState(""),[playerName,setPlayerName]=useState(""),[roomStatus,setRoomStatus]=useState(""),[roomPlayers,setRoomPlayers]=useState([]),[isRoomHost,setIsRoomHost]=useState(false),[battleResults,setBattleResults]=useState([]);
   const peerRef=useRef(null),connectionsRef=useRef([]),roomPlayersRef=useRef([]),roomResultsRef=useRef([]),battleRef=useRef(false),battleSubmittedRef=useRef(false),finalScoreRef=useRef(null),finalSamplesRef=useRef([]),audioContextRef=useRef(null);
+  const [isRandomSearching, setIsRandomSearching] = useState(false);
+  const randomPollRef=useRef(null),randomPeerIdRef=useRef(null),randomStartedRef=useRef(false),randomPendingConnRef=useRef(null),randomConnHandlerRef=useRef(null);
 
   function stopCamera() {
     discardRecordingRef.current = true;
