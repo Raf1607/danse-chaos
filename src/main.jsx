@@ -311,10 +311,10 @@ function App() {
   }
 
   function addFiles(fileList) {
-    const incoming=[...fileList].filter(f=>f.type.startsWith("audio/")||/\.(mp3|wav|ogg|m4a)$/i.test(f.name));
-    const mapped=incoming.map((file,i)=>({id:file.name+file.size+Date.now()+i,name:file.name.replace(/\.[^.]+$/,""),type:"UPLOAD",file,url:URL.createObjectURL(file)}));
+    const incoming=[...fileList].filter(f=>f.type.startsWith("audio/")||f.type.startsWith("video/")||/\.(mp3|wav|ogg|m4a|mp4|mov|webm)$/i.test(f.name));
+    const mapped=incoming.map((file,i)=>({id:file.name+file.size+Date.now()+i,name:file.type.startsWith("video/")?"Audio de ma vidéo":file.name.replace(/\.[^.]+$/,""),type:file.type.startsWith("video/")?"VIDEO":"UPLOAD",file,url:URL.createObjectURL(file)}));
     setTracks(prev=>[...prev,...mapped]);
-    if(!mapped.length)setError("Aucun fichier audio compatible trouvé."); else setError("");
+    if(!mapped.length)setError("Aucun fichier audio ou vidéo compatible trouvé."); else setError("");
   }
   function pickRandomTrack() {
     const originals=[{id:"synth-troll",name:"BIP BIP CHAOS",type:"TROLL"},{id:"synth-arcade",name:"ARCADE PANIC",type:"ARCADE"},{id:"synth-chill",name:"BANANA GROOVE",type:"SYNTH"}];
