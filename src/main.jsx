@@ -64,14 +64,13 @@ function scoreDance(samples) {
     if (unique.every(p => Math.abs(p[0] - signature[0]) + Math.abs(p[1] - signature[1]) + Math.abs(p[2] - signature[2]) > 0.12)) unique.push(signature);
   }
   const changes = samples.slice(1).filter((s, i) => Math.abs(s.left - samples[i].left) + Math.abs(s.right - samples[i].right) > 0.12).length;
-  const asymmetry = samples.reduce((a, s) => a + Math.abs(s.left - s.right), 0) / samples.length;
   const consistency = 1 - Math.min(1, samples.reduce((a, s, i) => a + (i ? Math.abs(s.activity - samples[i - 1].activity) : 0), 0) / samples.length / 0.12);
   const parts = {
     originality: Math.round(25 * Math.min(1, Math.max(0, (unique.length - 1) / 12))),
     rhythm: Math.round(25 * rhythm),
     energy: Math.round(20 * (Math.min(1, avg / 0.22) * 0.75 + active * 0.25)),
     variety: Math.round(15 * Math.min(1, changes / (samples.length * 0.35))),
-    coordination: Math.round(15 * Math.max(0, Math.min(1, 0.65 * consistency + 0.35 * (1 - Math.min(1, asymmetry * 2)))))
+    coordination: Math.round(15 * Math.max(0, Math.min(1, consistency)))
   };
   const total = Object.values(parts).reduce((a, b) => a + b, 0);
   return { total, parts, message: total >= 85 ? "LÉGENDE DU DANCEFLOOR 🔥" : total >= 65 ? "Très belle performance !" : total >= 40 ? "Pas mal du tout !" : "Le chaos est en toi. Continue !" };
@@ -184,9 +183,19 @@ function App() {
             const spread = visible.length ? visible.reduce((a,p) => a+Math.hypot(p.x-cx,p.y-cy),0)/visible.length : 0;
             const left = Math.hypot(lm[15].x-lm[11].x,lm[15].y-lm[11].y);
             const right = Math.hypot(lm[16].x-lm[12].x,lm[16].y-lm[12].y);
-            const movement = lastPoseRef.current ? Math.hypot(cx-lastPoseRef.current.x,cy-lastPoseRef.current.y) : 0;
-            lastPoseRef.current = {x:cx,y:cy};
-            const now=performance.now(); if(now-lastSampleAtRef.current>=100){samplesRef.current.push({activity:Math.min(1,movement*9+spread*.55+Math.abs(left-right)*.25),left,right,time:(now-(window.__danceStartTime||now))/1000});lastSampleAtRef.current=now;}
+            const bodyScale = Math.max(0.08, Math.hypot(lm[12].x-lm[11].x, lm[12].y-lm[11].y));
+            const jointIds = [13,14,15,16,25,26,27,28];
+            const jointPoints = jointIds.map(id => [lm[id].x, lm[id].y]);
+            let movement = 0;
+            if (lastPoseRef.current?.points) {
+              movement = jointPoints.reduce((sum, point, i) => sum + Math.hypot(point[0]-lastPoseRef.current.points[i][0], point[1]-lastPoseRef.current.points[i][1]), 0) / jointPoints.length / bodyScale;
+            }
+            lastPoseRef.current = {x:cx,y:cy,points:jointPoints};
+            const now=performance.now();
+            if(now-lastSampleAtRef.current>=100){
+              samplesRef.current.push({activity:Math.min(1,movement*2.8+spread*.22+Math.abs(left-right)*.12),left,right,time:(now-(window.__danceStartTime||now))/1000});
+              lastSampleAtRef.current=now;
+            }
             if (canvasRef.current) {
               const c=canvasRef.current, ctx=c.getContext("2d"); c.width=video.videoWidth; c.height=video.videoHeight;
               ctx.clearRect(0,0,c.width,c.height); ctx.fillStyle="#d7a5ff";
