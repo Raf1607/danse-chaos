@@ -86,6 +86,19 @@ function scoreDance(samples) {
   return { total, parts, message: total >= 85 ? "LÉGENDE DU DANCEFLOOR 🔥" : total >= 65 ? "Très belle performance !" : total >= 40 ? "Pas mal du tout !" : "Le chaos est en toi. Continue !" };
 }
 
+
+function StickDancer() {
+  return <div className="memory-dancer">
+    <div className="memory-stickman">
+      <i className="stick-head"/><i className="stick-body"/>
+      <i className="stick-arm left"/><i className="stick-arm right"/>
+      <i className="stick-leg left"/><i className="stick-leg right"/>
+      <i className="stick-shoe left"/><i className="stick-shoe right"/>
+    </div>
+    <b>REGARDE ET MÉMORISE !</b><small>La chorégraphie va disparaître…</small>
+  </div>;
+}
+
 function App() {
   const videoRef = useRef(null), replayVideoRef = useRef(null), canvasRef = useRef(null), landmarkerRef = useRef(null);
   const streamRef = useRef(null), rafRef = useRef(null), samplesRef = useRef([]), smoothLandmarksRef = useRef(null);
@@ -308,14 +321,14 @@ function App() {
     if(selected.type==="UPLOAD" || selected.type==="JAMENDO"){
       const audio=new Audio(); audio.crossOrigin="anonymous"; audio.src=selected.type==="JAMENDO"?selected.audio:selected.url; audio.volume=volume; audioRef.current=audio;
       await new Promise(resolve=>{audio.onloadedmetadata=resolve;audio.onerror=resolve;});
-      const duration=audio.duration||40, maxStart=Math.max(0,duration-(preview?5:ROUND_SECONDS));
-      audio.currentTime=Math.random()*maxStart; await audio.play();
-      if(preview)await new Promise(resolve=>setTimeout(resolve,5000));
+      const duration=audio.duration||40, maxStart=Math.max(0,duration-ROUND_SECONDS);
+      audio.currentTime=selected.fixedOffset ?? Math.random()*maxStart; selected.fixedOffset=audio.currentTime; await audio.play();
+      if(preview)await new Promise(resolve=>setTimeout(resolve,ROUND_SECONDS*1000));
       return;
     }
     const synth=makeSynthTrack(selected.type,selected.seed,audioContextRef.current); synthRef.current=synth;
     synth.gain.gain.value=volume;
-    const maxStart=synth.duration-ROUND_SECONDS-(preview?5:0), offset=selected.fixedOffset ?? Math.random()*Math.max(0,maxStart);
+    const maxStart=synth.duration-ROUND_SECONDS, offset=selected.fixedOffset ?? Math.random()*Math.max(0,maxStart); selected.fixedOffset=offset;
     synth.source.start(0,offset);
     if(preview)await new Promise(resolve=>setTimeout(resolve,5000));
   }
@@ -325,12 +338,13 @@ function App() {
     discardRecordingRef.current = false;
     if(!cameraOn){setError("Active la caméra avant de lancer une partie.");return;}
 
-    const chosen=battleTrack || pickRandomTrack();battleRef.current=Boolean(battleStartAt);battleSubmittedRef.current=false;finalScoreRef.current=null;finalSamplesRef.current=[];setTrack(chosen);setPhase("preview");setHint(battleStartAt ? "Battle entre amis : prépare-toi !" : "Écoute bien… tu as 5 secondes !");
+    const chosen=battleTrack || pickRandomTrack();battleRef.current=Boolean(battleStartAt);battleSubmittedRef.current=false;finalScoreRef.current=null;finalSamplesRef.current=[];setTrack(chosen);setPhase("memorize");setHint("MÉMORISE LA CHORÉGRAPHIE !");
     try {
-      if(battleStartAt) await new Promise(resolve=>setTimeout(resolve,Math.max(0,battleStartAt-Date.now()))); else await playTrackSegment(chosen,true);
+      if(battleStartAt) await new Promise(resolve=>setTimeout(resolve,Math.max(0,battleStartAt-Date.now())));
+      await playTrackSegment(chosen,true);
       if(audioRef.current)audioRef.current.pause();
       if(synthRef.current){try{synthRef.current.source.stop();if(synthRef.current.ownsContext)synthRef.current.ctx.close();}catch{}synthRef.current=null;}
-      setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;lastSampleAtRef.current=0;window.__danceStartTime=performance.now();setHint("C'EST PARTI ! DANSE !");
+      setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;lastSampleAtRef.current=0;window.__danceStartTime=performance.now();setHint("À TOI ! REPRODUIS LA DANSE DE MÉMOIRE !");
       await playTrackSegment(chosen,false);
       // Capture la vidéo et la musique ensemble pour un replay synchronisé.
       recordingChunksRef.current = [];
@@ -425,16 +439,16 @@ function App() {
     <section className="hero"><div className="eyebrow"><Sparkles size={14}/> LE JEU OÙ TOUT PEUT ARRIVER</div><h1>SHOW US<br/><span>YOUR MOVES.</span></h1><p className="subtitle">Une musique surprise. 15 secondes. Zéro jugement. Enfin… presque.</p>
       <div className="stats-row"><div><Music2/><b>ALÉATOIRE</b><small>Musique surprise</small></div><div><Camera/><b>CAMÉRA</b><small>Analyse en direct</small></div><div><Trophy/><b>/100</b><small>Score final</small></div></div>
     </section>
-    <section className="game-layout"><div className="play-panel"><div className="panel-head"><span className="panel-label">ZONE DE JEU</span><span className={`phase-tag ${phase}`}>{phase==="home"?"EN ATTENTE":phase==="preview"?"ÉCOUTE":phase==="dance"?"EN DANSE":"RÉSULTAT"}</span></div>
+    <section className="game-layout"><div className="play-panel"><div className="panel-head"><span className="panel-label">ZONE DE JEU</span><span className={`phase-tag ${phase}`}>{phase==="home"?"EN ATTENTE":phase==="memorize"?"MÉMORISE":phase==="preview"?"ÉCOUTE":phase==="dance"?"À TOI DE JOUER":"RÉSULTAT"}</span></div>
       <div className={phase==="result"&&replayUrl?"replay-layout":""}><div className="stage"><div className="camera-frame"><video ref={videoRef} autoPlay muted playsInline className={cameraOn?"video visible":"video"}/>{phase==="result" && replayUrl && <video ref={replayVideoRef} src={replayUrl} autoPlay controls playsInline className="replay-video" onTimeUpdate={handleReplayProgress} onEnded={finishReplay} onError={()=>setHint("Lecture du replay impossible. Appuie sur lecture dans le lecteur vidéo.")}/>}<canvas ref={canvasRef} className="pose-canvas"/>
         {cameraOn&&!framingOk&&phase!=="result"&&<div className="framing-overlay">ℹ️ {framingMessage} — tu peux quand même jouer</div>}
         {!cameraOn&&<div className="camera-placeholder"><div className="camera-icon"><CameraOff size={32}/></div><b>CAMÉRA EN VEILLE</b><span>Active-la pour analyser tes mouvements</span></div>}
-        {phase==="dance"&&<div className="countdown"><span>{timeLeft}</span><small>SECONDES</small></div>}
+        {phase==="memorize"&&<div className="memory-overlay"><StickDancer/></div>}{phase==="dance"&&<div className="countdown"><span>{timeLeft}</span><small>SECONDES</small></div>}
         {phase==="result"&&replayUrl&&<div className="replay-badge">🎬 REPLAY DE TA DANSE · SCORE EN DIRECT</div>}{phase==="preview"&&<div className="preview-overlay"><span className="sound-wave">♫</span><b>ÉCOUTE LA MUSIQUE</b><small>5 SECONDES POUR DEVINER</small></div>}
       </div><div className="stage-caption"><span className="equalizer"><i/><i/><i/><i/><i/></span>{hint}</div></div>      {score&&<div className="result-card"><div className="result-head"><Trophy size={19}/> {replayUrl ? "TON SCORE EN DIRECT" : "TON SCORE FINAL"}</div><div className="big-score">{score.total}<small>/100</small></div><b className="result-message">{score.message}</b>
         {CRITERIA.map(c=><div className="score-line" key={c.key}><span>{c.label}</span><b>{score.parts[c.key]} / {c.max}</b></div>)}<div className="score-animation-note">{replayUrl ? "Le score évolue pendant le replay. La vidéo sera supprimée à la fin." : "Score final de ta partie de 15 secondes."}</div><button className="replay-btn" onClick={resetGame}><RotateCcw size={15}/> REJOUER</button></div>}</div>
       <div className="controls">{!cameraOn?<button className="secondary-btn" onClick={enableCamera} disabled={loadingCamera}>{loadingCamera?"CHARGEMENT…":<><Camera size={17}/> ACTIVER LA CAMÉRA</>}</button>:<button className="secondary-btn stop-btn" onClick={stopCamera}><CameraOff size={17}/> ARRÊTER LA CAMÉRA</button>}
-        {phase==="home"||phase==="result"?<button className="primary-btn" onClick={startGame} disabled={!cameraOn}><Play size={18} fill="currentColor"/> {phase==="result"?"REJOUER":"LANCER LE CHAOS"}</button>:<button className="primary-btn" disabled><Zap size={18}/> {phase==="preview"?"ÉCOUTE…":"EN PLEINE DANSE"}</button>}</div>
+        {phase==="home"||phase==="result"?<button className="primary-btn" onClick={startGame} disabled={!cameraOn}><Play size={18} fill="currentColor"/> {phase==="result"?"REJOUER":"LANCER LE CHAOS"}</button>:<button className="primary-btn" disabled><Zap size={18}/> {phase==="memorize"?"MÉMORISE…":phase==="preview"?"PRÉPARE-TOI":"EN PLEINE DANSE"}</button>}</div>
       {cameraOn&&<div className={framingOk?"frame-status valid":"frame-status"}>{framingOk?"✓ ":"ℹ️ "}{framingMessage} {framingOk?"":"(cela ne bloque plus la partie)"}</div>}
       {error&&<div className="error-msg">{error}</div>}
       <div className="volume-row"><Volume2 size={16}/><input aria-label="Volume" type="range" min="0" max="1" step=".05" value={volume} onChange={e=>setVolume(Number(e.target.value))}/><span>{Math.round(volume*100)}%</span></div>
