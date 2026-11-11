@@ -41,26 +41,46 @@ function makeSynthTrack(kind, seed) {
 }
 
 function scoreDance(samples) {
-  if (samples.length < 5) return { total: 0, parts: Object.fromEntries(CRITERIA.map(c => [c.key, 0])), message: "Bouge davantage pour obtenir une note !" };
-  const avg = samples.reduce((a, s) => a + s.activity, 0) / samples.length;
-  const variance = samples.reduce((a, s) => a + (s.activity - avg) ** 2, 0) / samples.length;
-  const changes = samples.reduce((a, s, i) => a + (i > 0 && Math.abs(s.activity - samples[i - 1].activity) > 0.035 ? 1 : 0), 0);
+  if (samples.length < 12) return { total: 0, parts: Object.fromEntries(CRITERIA.map(c => [c.key, 0])), message: "La caméra n'a pas détecté assez de mouvements. Place-toi bien dans le cadre et réessaie !" };
+  const motions = samples.map(s => s.activity || 0);
+  const avg = motions.reduce((a, b) => a + b, 0) / motions.length;
+  const active = motions.filter(v => v > 0.012).length / motions.length;
+  const peaks = [];
+  for (let i = 1; i < motions.length - 1; i++) {
+    if (motions[i] >= motions[i - 1] && motions[i] > motions[i + 1] && motions[i] > Math.max(0.018, avg * 1.2)) {
+      if (!peaks.length || samples[i].time - samples[peaks[peaks.length - 1]].time >= 0.32) peaks.push(i);
+    }
+  }
+  const intervals = peaks.slice(1).map((p, i) => samples[p].time - samples[peaks[i]].time).filter(v => v >= 0.32 && v <= 1.6);
+  let rhythm = 0;
+  if (intervals.length >= 2) {
+    const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const sd = Math.sqrt(intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length);
+    rhythm = Math.max(0, 1 - sd / Math.max(mean, 0.01) / 0.85) * Math.min(1, intervals.length / 7);
+  } else if (intervals.length === 1) rhythm = 0.25;
+  const unique = [];
+  for (const s of samples) {
+    const signature = [s.left, s.right, s.activity];
+    if (unique.every(p => Math.abs(p[0] - signature[0]) + Math.abs(p[1] - signature[1]) + Math.abs(p[2] - signature[2]) > 0.12)) unique.push(signature);
+  }
+  const changes = samples.slice(1).filter((s, i) => Math.abs(s.left - samples[i].left) + Math.abs(s.right - samples[i].right) > 0.12).length;
   const asymmetry = samples.reduce((a, s) => a + Math.abs(s.left - s.right), 0) / samples.length;
+  const consistency = 1 - Math.min(1, samples.reduce((a, s, i) => a + (i ? Math.abs(s.activity - samples[i - 1].activity) : 0), 0) / samples.length / 0.12);
   const parts = {
-    originality: Math.round(25 * Math.min(1, Math.sqrt(variance) * 4 + changes / samples.length * 1.5)),
-    rhythm: Math.round(25 * Math.max(0.15, 1 - Math.min(1, Math.sqrt(variance) / 0.18))),
-    energy: Math.round(20 * Math.min(1, avg / 0.22)),
-    variety: Math.round(15 * Math.min(1, changes / (samples.length * 0.55))),
-    coordination: Math.round(15 * Math.max(0, 1 - asymmetry * 2.2))
+    originality: Math.round(25 * Math.min(1, Math.max(0, (unique.length - 1) / 12))),
+    rhythm: Math.round(25 * rhythm),
+    energy: Math.round(20 * (Math.min(1, avg / 0.22) * 0.75 + active * 0.25)),
+    variety: Math.round(15 * Math.min(1, changes / (samples.length * 0.35))),
+    coordination: Math.round(15 * Math.max(0, Math.min(1, 0.65 * consistency + 0.35 * (1 - Math.min(1, asymmetry * 2)))))
   };
-  const total = Math.min(100, Object.values(parts).reduce((a, b) => a + b, 0));
+  const total = Object.values(parts).reduce((a, b) => a + b, 0);
   return { total, parts, message: total >= 85 ? "LÉGENDE DU DANCEFLOOR 🔥" : total >= 65 ? "Très belle performance !" : total >= 40 ? "Pas mal du tout !" : "Le chaos est en toi. Continue !" };
 }
 
 function App() {
   const videoRef = useRef(null), canvasRef = useRef(null), landmarkerRef = useRef(null);
   const streamRef = useRef(null), rafRef = useRef(null), samplesRef = useRef([]);
-  const audioRef = useRef(null), synthRef = useRef(null), timerRef = useRef(null), lastPoseRef = useRef(null);
+  const audioRef = useRef(null), synthRef = useRef(null), timerRef = useRef(null), lastPoseRef = useRef(null), lastSampleAtRef = useRef(0);
   const [cameraOn, setCameraOn] = useState(false), [loadingCamera, setLoadingCamera] = useState(false);
   const [jamendoTracks, setJamendoTracks] = useState([]), [loadingJamendo, setLoadingJamendo] = useState(false);
   const [phase, setPhase] = useState("home"), [tracks, setTracks] = useState([]);
@@ -166,7 +186,7 @@ function App() {
             const right = Math.hypot(lm[16].x-lm[12].x,lm[16].y-lm[12].y);
             const movement = lastPoseRef.current ? Math.hypot(cx-lastPoseRef.current.x,cy-lastPoseRef.current.y) : 0;
             lastPoseRef.current = {x:cx,y:cy};
-            samplesRef.current.push({activity:Math.min(1,movement*9+spread*.55+Math.abs(left-right)*.25),left,right});
+            const now=performance.now(); if(now-lastSampleAtRef.current>=100){samplesRef.current.push({activity:Math.min(1,movement*9+spread*.55+Math.abs(left-right)*.25),left,right,time:(now-(window.__danceStartTime||now))/1000});lastSampleAtRef.current=now;}
             if (canvasRef.current) {
               const c=canvasRef.current, ctx=c.getContext("2d"); c.width=video.videoWidth; c.height=video.videoHeight;
               ctx.clearRect(0,0,c.width,c.height); ctx.fillStyle="#d7a5ff";
@@ -251,7 +271,7 @@ function App() {
       await playTrackSegment(chosen,true);
       if(audioRef.current)audioRef.current.pause();
       if(synthRef.current){try{synthRef.current.source.stop();synthRef.current.ctx.close();}catch{}synthRef.current=null;}
-      setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;setHint("C'EST PARTI ! DANSE !");
+      setPhase("dance");setTimeLeft(ROUND_SECONDS);samplesRef.current=[];lastPoseRef.current=null;lastSampleAtRef.current=0;window.__danceStartTime=performance.now();setHint("C'EST PARTI ! DANSE !");
       await playTrackSegment(chosen,false);
       let left=ROUND_SECONDS;
       timerRef.current=setInterval(()=>{
